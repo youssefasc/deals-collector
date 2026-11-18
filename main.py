@@ -53,6 +53,10 @@ NODE_SOURCES = [s.split(":") for s in os.environ.get("NODE_SOURCES",
     "18020637031:grocery,21832868031:phones,21832872031:computers,21832881031:tvs_node,"
     "21832869031:audio,21832878031:smartwatches").split(",") if ":" in s]
 NODE_DELAY = float(os.environ.get("NODE_DELAY", "2.0"))
+AMAZON_NOW_SMID = os.environ.get("AMAZON_NOW_SMID", "A31TYDXOWA7X1E")
+RESALE_NODE = os.environ.get("RESALE_NODE", "27972173031")
+TOP_PAGES = int(os.environ.get("TOP_PAGES", "4"))      # أول كام صفحة (الأكثر مبيعاً) بتتفحص كتير
+TOP_DELAY = float(os.environ.get("TOP_DELAY", "1.5"))
 SEARCH_DELAY = float(os.environ.get("SEARCH_DELAY", "1.0"))
 SEARCH_MAX_PAGES = int(os.environ.get("SEARCH_MAX_PAGES", "400"))
 
@@ -265,7 +269,8 @@ SEARCH_JS = """async (u) => {
         price: num(e.querySelector('.a-price:not(.a-text-price) .a-offscreen')?.textContent),
         list: num(e.querySelector('.a-price.a-text-price .a-offscreen')?.textContent),
         img: e.querySelector('img.s-image')?.getAttribute('src') || null,
-        oos: /غير متوفر|Currently unavailable/i.test(e.textContent)
+        oos: /غير متوفر|Currently unavailable/i.test(e.textContent),
+        txt: (e.innerText || e.textContent || '').replace(/\\s+/g, ' ').slice(0, 500)
       }));
     const blocked = /captcha|عذر/i.test(d.title || '') ;
     return {items, blocked, hasNext: !!d.querySelector('.s-pagination-next:not(.s-pagination-disabled)')};
@@ -273,7 +278,21 @@ SEARCH_JS = """async (u) => {
 }"""
 
 
-def search_item(x: dict, cat: str):
+_AR = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+
+
+def used_price(txt: str):
+    """سعر المستعمل من نص الكارت: "EGP 100.04(1 used offer)" أو "100.04 جنيه (1 عرض مستعمل)"."""
+    t = (txt or "").translate(_AR).replace("٬", ",").replace("٫", ".").replace("\u200f", "")
+    m = (re.search(r"(?:EGP|جنيه)\s*([\d,]+(?:\.\d+)?)\s*\(?\s*\d+\+?\s*(?:used|عرض|عروض)", t, re.I)
+         or re.search(r"([\d,]+(?:\.\d+)?)\s*(?:جنيه|EGP)\s*\(?\s*\d+\+?\s*(?:used|عرض|عروض)", t, re.I))
+    try:
+        return float(m.group(1).replace(",", "")) if m else None
+    except ValueError:
+        return None
+
+
+def search_item(x: dict, cat: str, store: str = "amazon"):
     price, lst = x.get("price"), x.get("list")
     if not x.get("asin") or not price:
         return None
@@ -281,8 +300,11 @@ def search_item(x: dict, cat: str):
     img = x.get("img")
     if img:
         img = re.sub(r"\._[^/]*_\.", "._AC_SL500_.", img)
-    return {"store": "amazon", "pid": x["asin"].upper(), "title": (x.get("title") or "")[:300], "image": img,
-            "url": f"https://www.amazon.eg/dp/{x['asin'].upper()}?tag={AMAZON_TAG}",
+    a = x["asin"].upper()
+    url = {"amazon_now": f"https://www.amazon.eg/dp/{a}?smid={AMAZON_NOW_SMID}&tag={AMAZON_TAG}",
+           "amazon_resale": f"https://www.amazon.eg/dp/{a}?aod=1&condition=used&tag={AMAZON_TAG}"}.get(
+        store, f"https://www.amazon.eg/dp/{a}?tag={AMAZON_TAG}")
+    return {"store": store, "pid": a, "title": (x.get("title") or "")[:300], "image": img, "url": url,
             "price": price, "list_price": lst, "discount_pct": pct,
             "category": cat, "src_category": "search", "in_stock": not x.get("oos")}
 
@@ -359,6 +381,123 @@ async def search_source_loop(amz, db: "DB", alias: str, cat: str, node: bool = F
                 await asyncio.sleep((NODE_DELAY if node else SEARCH_DELAY) + random.uniform(0, 1.0))
             log(f"search done: {alias} → {total} products, {page} pages in {int(time.time() - t0)}s")
         await asyncio.sleep(20)
+
+
+async def fetch_search(amz, url):
+    stats["requests"] += 1
+    try:
+        res = await amz.page.evaluate(SEARCH_JS, url)
+    except Exception as e:
+        stats["errors"] += 1
+        log("search error", str(e)[:100])
+        return None
+    if res.get("err") or res.get("blocked"):
+        stats["errors"] += 1
+        if res.get("err") in (403, 429, 503) or res.get("blocked"):
+            amz.backoff_until = time.time() + 60
+            log("search blocked:", res.get("err") or "captcha", "— backing off 1 min")
+        return None
+    return res
+
+
+def top_urls():
+    """أول صفحات كل قسم (مرتبة بالأكثر مبيعاً) — دي المنتجات المهمة اللي لازم نلقط نزولها بسرعة."""
+    out = []
+    for n, c in NODE_SOURCES:
+        out.append((lambda p, n=n: f"https://www.amazon.eg/s?rh=n%3A{n}&fs=true&language=ar_AE&page={p}", c, "amazon"))
+    for a, c in SEARCH_SOURCES:
+        out.append((lambda p, a=a: f"https://www.amazon.eg/s?i={a}&rh=p_n_deal_type%3A26901036031&language=ar_AE&page={p}", c, "amazon"))
+    out.append((lambda p: f"https://www.amazon.eg/s?me={AMAZON_NOW_SMID}&fs=true&language=ar_AE&page={p}", "grocery", "amazon_now"))
+    return out
+
+
+async def top_loop(amz, db: "DB"):
+    """بيلف على أول صفحات كل الأقسام باستمرار (كل كام دقيقة) عشان الأكثر مبيعاً يتفحص أكتر من الباقي."""
+    while True:
+        t0, n = time.time(), 0
+        for fn, cat, store in top_urls():
+            for p in range(1, TOP_PAGES + 1):
+                while time.time() < amz.backoff_until:
+                    await asyncio.sleep(5)
+                res = await fetch_search(amz, fn(p))
+                if not res:
+                    break
+                items = [i for i in (search_item(x, classify(cat, x.get("title")), store) for x in res.get("items") or []) if i]
+                stats["items"] += len(items)
+                n += len(items)
+                await db.ingest(items)
+                if not res.get("hasNext"):
+                    break
+                await asyncio.sleep(TOP_DELAY + random.uniform(0, 0.5))
+        log(f"top pass: {n} bestsellers checked in {int(time.time() - t0)}s")
+        await asyncio.sleep(5)
+
+
+async def amazon_now_loop(amz, db: "DB"):
+    """أمازون ناو = منتجات البائع A31TYDXOWA7X1E (توصيل خلال دقايق)."""
+    while True:
+        t0, total, page = time.time(), 0, 1
+        while page <= 200:
+            while time.time() < amz.backoff_until:
+                await asyncio.sleep(5)
+            res = await fetch_search(amz, f"https://www.amazon.eg/s?me={AMAZON_NOW_SMID}&fs=true&language=ar_AE&page={page}")
+            if not res:
+                break
+            items = [i for i in (search_item(x, "grocery", "amazon_now") for x in res.get("items") or []) if i]
+            for i in items:
+                i["category"] = None   # التصنيف بيتاخد من نفس المنتج في أمازون لو موجود
+            total += len(items)
+            stats["items"] += len(items)
+            await db.ingest(items)
+            if not res.get("hasNext"):
+                break
+            page += 1
+            await asyncio.sleep(SEARCH_DELAY + random.uniform(0, 1.0))
+        log(f"amazon now done: {total} products, {page} pages in {int(time.time() - t0)}s")
+        await asyncio.sleep(120)
+
+
+async def resale_loop(amz, db: "DB"):
+    """أمازون مستعمل (ريسيل). أمازون بيقفل التقليب بعد ~13 صفحة، فبنقسم بشرائح سعر
+    وأي شريحة توصل للحد بنقسمها نصين."""
+    while True:
+        t0, total = time.time(), 0
+        bands = [[0, 50], [50, 100], [100, 200], [200, 400], [400, 800], [800, 1600], [1600, 3200],
+                 [3200, 6400], [6400, 12800], [12800, 25600], [25600, 2000000]]
+        while bands:
+            lo, hi = bands.pop(0)
+            page, capped = 1, False
+            while True:
+                while time.time() < amz.backoff_until:
+                    await asyncio.sleep(5)
+                url = (f"https://www.amazon.eg/s?i=warehouse-deals&bbn={RESALE_NODE}&rh=n%3A{RESALE_NODE}"
+                       f"%2Cp_36%3A{lo * 100}-{hi * 100}&s=price-asc-rank&language=ar_AE&page={page}")
+                res = await fetch_search(amz, url)
+                if not res:
+                    break
+                items = []
+                for x in res.get("items") or []:
+                    up = used_price(x.get("txt"))
+                    if up:
+                        x["price"], x["list"] = up, None
+                    it = search_item(x, None, "amazon_resale")
+                    if it:
+                        items.append(it)
+                total += len(items)
+                stats["items"] += len(items)
+                await db.ingest(items)
+                if not res.get("hasNext"):
+                    break
+                page += 1
+                if page > 13:
+                    capped = True
+                    break
+                await asyncio.sleep(SEARCH_DELAY + random.uniform(0, 1.0))
+            if capped and hi - lo > 2:
+                mid = (lo + hi) // 2
+                bands[:0] = [[lo, mid], [mid, hi]]
+        log(f"resale done: {total} products in {int(time.time() - t0)}s")
+        await asyncio.sleep(300)
 
 
 async def hot_loop(amz: Amazon, db: DB):
@@ -446,7 +585,8 @@ async def main():
                 await page.goto("https://www.amazon.eg/", wait_until="domcontentloaded", timeout=45000)
             except Exception:
                 pass
-        loops = [search_loop(amz, db), stats_loop(db), refresh_loop(amz)]
+        loops = [search_loop(amz, db), top_loop(amz, db), amazon_now_loop(amz, db), resale_loop(amz, db),
+                 stats_loop(db), refresh_loop(amz)]
         if amz.feeds:
             loops += [hot_loop(amz, db), sweep_loop(amz, db)]
         else:
