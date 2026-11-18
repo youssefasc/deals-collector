@@ -21,6 +21,7 @@ function buildQuery(){
   if(st.sort==='low')p+='&drop_pct=gt.0';
   return p+'&order='+o+'&limit='+st.limit;
 }
+function storeName(k){return (STORES.find(x=>x[0]===k)||[,'المتجر'])[1]}
 function storeTag(k){const s=STORES.find(x=>x[0]===k);return s?`<div class="store-name"><img src="https://www.google.com/s2/favicons?domain=${s[2]}&sz=32" alt="">${s[1]}</div>`:''}
 function card(p){
   const fresh=!st.first&&!st.seen.has(p.id+p.price);st.seen.add(p.id+p.price);
@@ -59,7 +60,7 @@ function chips(id,list,key){
   el.innerHTML=list.map(([v,t])=>`<button class="chip ${st[key]==v?'on':''}" data-v="${v}">${t}</button>`).join('');
   el.onclick=e=>{const b=e.target.closest('.chip');if(!b)return;st[key]=key==='pct'?+b.dataset.v:b.dataset.v;st.limit=48;st.first=true;st.seen.clear();chips(id,list,key);loadFeed()};
 }
-function feed(){
+function feed(){document.body.classList.remove('pp-open');
   const app=document.getElementById('app');app.innerHTML='';app.append(document.getElementById('feedTpl').content.cloneNode(true));
   chips('sortChips',SORTS,'sort');chips('catChips',CATS,'cat');chips('pctChips',PCTS,'pct');
   const qi=document.getElementById('q');qi.value=st.q;let d;qi.oninput=()=>{clearTimeout(d);d=setTimeout(()=>{st.q=qi.value.trim();st.first=true;loadFeed()},400)};
@@ -87,21 +88,22 @@ async function product(id){
   const [p]=await q('products?id=eq.'+encodeURIComponent(id)+'&select=*');
   if(!p){app.innerHTML='<div class="empty">المنتج مش موجود</div>';return}
   const hist=await q('price_history?product_id=eq.'+encodeURIComponent(id)+'&select=price,at&order=at.asc&limit=500');
-  const [cls,txt]=verdict(p);document.title=p.title+' — عروض متتفوتش';
+  const [cls,txt]=hist.length<2&&!p.fake_discount?['v-ok','🆕 لسه بادئين نتابع سعر المنتج دا — هنقولك أول ما يتغير.']:verdict(p);document.body.classList.add('pp-open');document.title=p.title+' — عروض متتفوتش';
   app.innerHTML=`<a class="back" href="#/deals">→ رجوع للعروض</a><div class="pp"><div class="img"><img src="${esc(p.image)}" alt=""></div><div>
   <h2 style="font-size:18px;line-height:1.6;margin:0">${esc(p.title)}</h2>
   <div class="price" style="margin-top:8px"><b style="font-size:28px">${fmt(p.price)} ج</b>${p.list_price&&+p.list_price>+p.price?`<s>${fmt(p.list_price)}</s> <span class="b pct">-${p.discount_pct}%</span>`:''}</div>
   <div class="verdict ${cls}">${txt}</div>
   <div class="kv"><div><small>أقل سعر</small><b>${fmt(p.low_price)}</b></div><div><small>أعلى سعر</small><b>${fmt(p.high_price)}</b></div><div><small>قوة اللقطة</small><b>${p.score||0}</b></div></div>
-  <canvas id="cv"></canvas>
-  <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"><a class="btn buy" href="${esc(p.url)}" target="_blank" rel="noopener sponsored">اشتري من أمازون ←</a><button class="btn" id="share">مشاركة</button></div>
-  <p style="color:var(--mute);font-size:12px">آخر تغيير في السعر ${ago(p.last_change)} · بنتابعه من ${ago(p.first_seen).replace('من ','')}</p></div></div>`;
+  <h3 class="hist-h">📈 تاريخ السعر</h3>
+  <canvas id="cv" class="${hist.length<2?'small':''}"></canvas>
+  <p class="since">آخر تغيير في السعر ${ago(p.last_change)} · بنتابعه ${ago(p.first_seen)}</p></div></div>
+  <div class="buybar"><a class="btn buy" href="${esc(p.url)}" target="_blank" rel="noopener sponsored">🛒 اشتري من ${storeName(p.store)} <small>${fmt(p.price)} ج</small></a><button class="btn share" id="share" aria-label="مشاركة">🔗</button></div>`;
   chart(document.getElementById('cv'),hist);
-  document.getElementById('share').onclick=()=>{const u=location.href;navigator.share?navigator.share({title:p.title,url:u}).catch(()=>{}):navigator.clipboard.writeText(u).then(()=>alert('اتنسخ اللينك'))};
+  document.getElementById('share').onclick=()=>{const u=location.href;navigator.share?navigator.share({title:p.title,url:u}).catch(()=>{}):navigator.clipboard.writeText(u).then(()=>toast('اتنسخ اللينك ✅'))};
   scrollTo(0,0);
 }
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),2500)}
-function home(){
+function home(){document.body.classList.remove('pp-open');
   clearInterval(timer);const app=document.getElementById('app');app.innerHTML='';app.append(document.getElementById('homeTpl').content.cloneNode(true));
   document.getElementById('botBtn').href=BOT_URL;
   document.getElementById('storeGrid').innerHTML=STORES.map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'javascript:void 0'}" data-soon="${on?'':n}">${on?'<span class="tag">● مباشر</span>':''}<span class="lg"><img src="https://www.google.com/s2/favicons?domain=${dom}&sz=128" alt="${n}" onerror="this.replaceWith(document.createTextNode('${n[0]}'))"></span><b>${n}</b><small>${on?'خصومات لحد 90%':'قريباً'}</small></a>`).join('');
