@@ -43,6 +43,9 @@ DEPARTMENTS = [
     ("18022219031", "musical_instruments"), ("18029450031", "other"),
 ]
 
+PRICE_BANDS = [(1, 100), (100, 250), (250, 500), (500, 1000), (1000, 2500), (2500, 5000),
+               (5000, 15000), (15000, 200000)]
+
 stats = {"requests": 0, "items": 0, "inserted": 0, "changed": 0, "errors": 0, "since": time.time()}
 
 
@@ -170,18 +173,23 @@ class Amazon:
                             q2["filters"] = json.dumps(f2, separators=(",", ":"))
                             self.feeds[f"{src}#{dep_name}"] = (parts, q2)
                         log(f"   + {len(DEPARTMENTS)} department feeds")
-                    # مرة واحدة: نطلب "الفلاتر المتاحة" عشان نعرف نقسّم بإيه (ماركات، أسعار، أقسام)
-                    q3 = dict(q)
-                    q3["calculateRefinements"] = "true"
-                    q3["startIndex"] = "0"
-                    u3 = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q3), ""))
-                    d3 = await self._eval(u3)
-                    if isinstance(d3, dict):
-                        log("REFINE keys:", list(d3.keys())[:20])
-                        ref = d3.get("refinements") or d3.get("refinementGroups") or {}
-                        txt = json.dumps(ref, ensure_ascii=False)
-                        for i in range(0, min(len(txt), 6000), 500):
-                            log("REFINE", txt[i:i+500])
+                        # كل قسم بيقف عند ~٥٠٠ — نقسّمه كمان بنطاقات سعر (لو المصدر بيقبل فلتر السعر)
+                        key = await self.detect_price_filter(parts, q, flt)
+                        if key:
+                            n = 0
+                            for dep_id, dep_name in DEPARTMENTS:
+                                for lo, hi in PRICE_BANDS:
+                                    f3 = dict(flt)
+                                    f3["includedDepartments"] = [dep_id]
+                                    f3[key] = {"min": lo, "max": hi}
+                                    q3 = dict(q)
+                                    q3["filters"] = json.dumps(f3, separators=(",", ":"))
+                                    self.feeds[f"{src}#{dep_name}@{lo}-{hi}"] = (parts, q3)
+                                    n += 1
+                            # النسخ المقسّمة بتغطي القسم كله، فمش محتاجين نسخة القسم الكاملة
+                            for dep_id, dep_name in DEPARTMENTS:
+                                self.feeds.pop(f"{src}#{dep_name}", None)
+                            log(f"   + {n} department×price feeds (filter key '{key}')")
                 except Exception as e:
                     log("department feeds error", str(e)[:100])
                 log("feed found:", src)
@@ -189,6 +197,30 @@ class Amazon:
                     log("   ", k, "=", unquote(v)[:300])
             else:
                 log("no data feed found on", src, "| title:", (await self.page.title())[:60])
+
+    async def detect_price_filter(self, parts, q, flt):
+        """بنجرب أسماء فلتر السعر المحتملة ونشوف أنهي واحد المصدر بيحترمه فعلاً."""
+        for key in ("priceRange", "price", "priceRanges", "priceBucket"):
+            for val in ({"min": 10, "max": 100},):
+                f = dict(flt)
+                f[key] = [val] if key == "priceRanges" else val
+                qq = dict(q)
+                qq["filters"] = json.dumps(f, separators=(",", ":"))
+                qq["startIndex"] = "0"
+                url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(qq), ""))
+                try:
+                    d = await self._eval(url)
+                except Exception:
+                    continue
+                prods = [p for p in (parse_product(x) for x in ((d or {}).get("products") or [])) if p] \
+                    if isinstance(d, dict) else []
+                inside = [p for p in prods if p["price"] <= 110]
+                log(f"price filter test '{key}': {len(prods)} products, {len(inside)} inside 10-100")
+                if prods and len(inside) >= len(prods) * 0.9:
+                    return key
+                await asyncio.sleep(1)
+        log("price filter: none of the guesses worked — departments stay at ~500 each")
+        return None
 
     async def _eval(self, url):
         return await self.page.evaluate("""async (u) => {
