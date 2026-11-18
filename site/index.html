@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>عروض متتفوتش — أقوى عروض مصر لحظة بلحظة</title>
+<meta name="description" content="كل خصومات أمازون مصر في مكان واحد، بتتحدث كل ١٠ ثواني، مع تاريخ السعر وكشف الخصم الوهمي.">
+<meta name="theme-color" content="#0f1115">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/">
+    <span class="logo">🔥</span>
+    <span><b>عروض متتفوتش</b><small>أقوى عروض مصر لحظة بلحظة</small></span>
+  </a>
+  <div class="live"><span class="dot"></span><span id="liveText">مباشر</span></div>
+</header>
+
+<main id="app"></main>
+
+<footer class="foot">
+  <a href="https://t.me/offer_egypt" target="_blank" rel="noopener">📢 قناة التليجرام</a>
+  <span>الأسعار بتتحدث تلقائياً — اتأكد من السعر في المتجر قبل الشراء.</span>
+</footer>
+
+<template id="feedTpl">
+  <section class="hero">
+    <h1>اللي نزل <span>دلوقتي</span></h1>
+    <p id="heroSub">بنراقب أسعار أمازون مصر طول الوقت — وأول ما سعر ينزل بيظهر هنا.</p>
+    <div class="stats" id="stats"></div>
+  </section>
+  <section class="controls">
+    <div class="search"><input id="q" type="search" placeholder="دوّر على منتج… (آيفون، غسالة، كوتشي)"></div>
+    <div class="chips" id="sortChips"></div>
+    <div class="chips" id="catChips"></div>
+    <div class="chips" id="pctChips"></div>
+  </section>
+  <section class="grid" id="grid"></section>
+  <div class="more"><button id="moreBtn">عرض أكتر</button></div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
