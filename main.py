@@ -74,7 +74,7 @@ def cfg(k, default):
     return default if v is None else v
 
 
-_STORE_OF = {"deals": "amazon", "hot": "amazon", "search": "amazon", "nodes": "amazon", "top": "amazon",
+_STORE_OF = {"coupons": "amazon", "deals": "amazon", "hot": "amazon", "search": "amazon", "nodes": "amazon", "top": "amazon",
              "now": "amazon_now", "resale": "amazon_resale"}
 
 
@@ -563,6 +563,79 @@ async def resale_loop(amz, db: "DB"):
         await asyncio.sleep(300)
 
 
+def _promo_text(pr: dict):
+    """نص الكوبون من بيانات أمازون: "أنت تدفع 4740 جنيه باستخدام القسيمة"."""
+    for p in (pr.get("promotions") or []):
+        if not isinstance(p, dict):
+            continue
+        frags = ((p.get("label") or {}).get("fragments") or [])
+        txt = ""
+        for f in frags:
+            if f.get("text"):
+                txt += f["text"]
+            elif f.get("money"):
+                try:
+                    txt += f"{float(f['money']['amount']):,.0f} جنيه"
+                except Exception:
+                    pass
+        txt += (p.get("messaging") or {}).get("text") or ""
+        if txt.strip():
+            return txt.strip()
+    return None
+
+
+async def coupon_loop(amz, db: "DB"):
+    """كوبونات أمازون (القسائم): صفحة العروض بفلتر الكوبونات، لكل قسم لوحده."""
+    while True:
+        await gate("coupons")
+        base = next((v for k, v in amz.feeds.items() if "#" not in k), None)
+        if not base:
+            await asyncio.sleep(60)
+            continue
+        parts, q0 = base
+        t0, total = time.time(), 0
+        for dep_id, dep_name in [(None, "all")] + DEPARTMENTS:
+            flt = json.loads(q0.get("filters") or "{}")
+            flt["promotionTypes"] = ["COUPON"]
+            flt["includedDepartments"] = [dep_id] if dep_id else []
+            q = dict(q0)
+            q["filters"] = json.dumps(flt, separators=(",", ":"))
+            for start in range(0, 600, 30):
+                while time.time() < amz.backoff_until:
+                    await asyncio.sleep(5)
+                q["startIndex"], q["pageSize"] = str(start), "30"
+                url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), ""))
+                stats["requests"] += 1
+                try:
+                    data = await amz._eval(url)
+                except Exception:
+                    break
+                prods = (data or {}).get("products") or [] if isinstance(data, dict) and not data.get("err") else []
+                if not prods:
+                    break
+                items, coupons = [], []
+                for pr in prods:
+                    it = parse_product(pr)
+                    if not it:
+                        continue
+                    items.append(it)
+                    txt = _promo_text(pr)
+                    coupons.append({"id": f"amazon:{it['pid']}", "store": "amazon", "title": it["title"],
+                                    "discount": txt or "عليه كوبون", "url": it["url"], "image": it["image"],
+                                    "product_id": f"amazon:{it['pid']}"})
+                await db.ingest(items)
+                if coupons:
+                    try:
+                        await db.client.post(f"{SUPABASE_URL}/rest/v1/rpc/ingest_coupons",
+                                             json={"token": INGEST_TOKEN, "items": coupons})
+                        total += len(coupons)
+                    except Exception:
+                        pass
+                await asyncio.sleep(cfg("sweep_delay", SWEEP_DELAY) + random.uniform(0, 0.6))
+        log(f"coupons done: {total} amazon coupons in {int(time.time() - t0)}s")
+        await asyncio.sleep(600)
+
+
 async def hot_loop(amz: Amazon, db: DB):
     while True:
         t0 = time.time()
@@ -653,7 +726,7 @@ async def main():
         loops = [search_loop(amz, db), top_loop(amz, db), amazon_now_loop(amz, db), resale_loop(amz, db),
                  stats_loop(db), refresh_loop(amz), config_loop(db)]
         if amz.feeds:
-            loops += [hot_loop(amz, db), sweep_loop(amz, db)]
+            loops += [hot_loop(amz, db), sweep_loop(amz, db), coupon_loop(amz, db)]
         else:
             log("deals feed not found — running search sources only")
         await asyncio.gather(*loops)
