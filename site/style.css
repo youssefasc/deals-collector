@@ -85,3 +85,13 @@ canvas{width:100%;height:220px;background:var(--card);border:1px solid var(--lin
 .buybar .share{flex:0 0 auto;font-size:14px;padding:0 14px;font-weight:700;white-space:nowrap}
 body.pp-open .fab{display:none}body.pp-open main{padding-bottom:100px}body.pp-open .foot{padding-bottom:96px}
 @media(min-width:761px){.buybar{position:static;padding:0;background:none;border:0;margin:16px 0 0;max-width:1180px}}
+
+.wasline{font-size:11.5px;color:#7fd3a0;background:#10261a;border-radius:8px;padding:3px 8px;width:fit-content}
+.card.dropped{border-color:#1f5a3a}.b.drop{background:#16a34a}
+.drops{margin-top:18px}.drops-h{display:flex;justify-content:space-between;align-items:center}.drops-h h2{margin:0;font-size:22px}.drops-h a{color:var(--brand2);font-size:14px;font-weight:700}
+.dstrip{display:flex;gap:10px;overflow-x:auto;padding:4px 0 10px;scroll-snap-type:x mandatory;scrollbar-width:none}.dstrip::-webkit-scrollbar{display:none}
+.dcard{position:relative;flex:0 0 150px;scroll-snap-align:start;background:var(--card);border:1px solid #1f5a3a;border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:5px}
+.dcard img{width:100%;aspect-ratio:1;object-fit:contain;background:#fff;border-radius:10px;padding:6px}
+.dcard .dt{font-size:12px;line-height:1.5;height:3em;overflow:hidden}.dcard .dp{display:flex;gap:6px;align-items:baseline}.dcard .dp b{font-size:15px}.dcard .dp s{color:var(--mute);font-size:11px}.dcard small{color:var(--mute);font-size:11px}
+.dpct{position:absolute;top:12px;inset-inline-start:12px;background:#16a34a;color:#fff;font-weight:800;font-size:12px;border-radius:8px;padding:2px 7px;z-index:1}
+.btn.dropbtn{background:#10261a;border:1.5px solid #16a34a;color:#7ff0a7}

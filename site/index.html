@@ -38,6 +38,7 @@
     <div class="cta">
       <a class="btn buy" href="#/deals">⚡ أحدث المنتجات</a>
       <a class="btn stores-btn" href="#stores">🏪 اختار المتجر <span>←</span></a>
+      <a class="btn dropbtn" href="#/deals?type=drop">📉 نزل سعره دلوقتي</a>
       <a class="btn tg" id="botBtn" target="_blank" rel="noopener">🤖 بوت تتبع الأسعار</a>
       <a class="btn tg" href="https://t.me/offer_egypt" target="_blank" rel="noopener">📢 قناة التليجرام</a>
       <a class="btn search-btn" href="#" id="searchBtn">🔍 ابحث عن منتج</a>
@@ -48,6 +49,11 @@
     <div><b>📉 كشف الخصم الوهمي</b><span>بنقارن السعر بتاريخه، ونقولك لو الخصم حقيقي ولا متضخم.</span></div>
     <div><b>⚡ تحديث لحظي</b><span>العروض بتتحدث قدامك من غير ما تعمل ريفريش.</span></div>
     <div><b>🔥 قوة اللقطة</b><span>تقييم من 100 لكل عرض عشان تعرف اللقطة من أول نظرة.</span></div>
+  </section>
+  <section class="drops">
+    <div class="drops-h"><h2>📉 نزل سعره دلوقتي</h2><a href="#/deals?type=drop">شوف الكل ←</a></div>
+    <p class="sub">منتجات سعرها نزل بجد عن آخر سعر سجلناه — مش خصم مكتوب وبس.</p>
+    <div class="dstrip" id="dropStrip"><div class="empty">بنحمّل…</div></div>
   </section>
   <section id="stores">
     <h2>🛍️ تسوّق حسب المتجر</h2>
@@ -65,6 +71,8 @@
   </section>
   <section class="controls">
     <div class="search"><input id="q" type="search" placeholder="دوّر على منتج… (آيفون، غسالة، كوتشي)"></div>
+    <div class="chips" id="typeChips"></div>
+    <div class="chips" id="sinceChips"></div>
     <div class="chips" id="sortChips"></div>
     <div class="chips" id="catChips"></div>
     <div class="chips" id="pctChips"></div>
