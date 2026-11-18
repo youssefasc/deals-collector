@@ -174,6 +174,7 @@ class Amazon:
                             self.feeds[f"{src}#{dep_name}"] = (parts, q2)
                         log(f"   + {len(DEPARTMENTS)} department feeds")
                         # كل قسم بيقف عند ~٥٠٠ — نقسّمه كمان بنطاقات سعر (لو المصدر بيقبل فلتر السعر)
+                        await self.probe_filter_names()
                         key = await self.detect_price_filter(parts, q, flt)
                         if key:
                             n = 0
@@ -197,6 +198,34 @@ class Amazon:
                     log("   ", k, "=", unquote(v)[:300])
             else:
                 log("no data feed found on", src, "| title:", (await self.page.title())[:60])
+
+    async def probe_filter_names(self):
+        """مؤقت: بندوّر في كود صفحة العروض على أسماء الفلاتر اللي المصدر بيقبلها."""
+        try:
+            res = await self.page.evaluate("""async () => {
+                const srcs = [...document.querySelectorAll('script[src]')].map(s => s.src);
+                const out = [];
+                for (const u of srcs) {
+                    try {
+                        const t = await (await fetch(u)).text();
+                        for (const w of ['includedDepartments', 'percentOff', 'priceRange', 'excludedTags']) {
+                            let i = t.indexOf(w);
+                            let n = 0;
+                            while (i >= 0 && n < 3) {
+                                out.push(u.split('/').pop().slice(0, 40) + ' :: ' + t.slice(Math.max(0, i - 250), i + 350));
+                                i = t.indexOf(w, i + 1); n++;
+                            }
+                        }
+                    } catch (e) {}
+                    if (out.length > 30) break;
+                }
+                return out;
+            }""")
+            for r in res[:30]:
+                for i in range(0, len(r), 450):
+                    log("FILTERNAMES", r[i:i+450])
+        except Exception as e:
+            log("probe_filter_names error", str(e)[:120])
 
     async def detect_price_filter(self, parts, q, flt):
         """بنجرب أسماء فلتر السعر المحتملة ونشوف أنهي واحد المصدر بيحترمه فعلاً."""
