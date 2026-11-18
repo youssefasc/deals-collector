@@ -81,7 +81,7 @@ async function login(){
 $('loginBtn').onclick=login;$('pw').onkeydown=e=>{if(e.key==='Enter')login()};
 $('logout').onclick=()=>{try{localStorage.removeItem('adm')}catch(e){}location.reload()};
 
-const TABS=[['dash','📊 الإحصائيات'],['content','✍️ محتوى الموقع'],['stores','🏪 المتاجر'],['cats','🗂 الأقسام'],['products','📦 المنتجات'],['collector','⚙️ الجامع']];
+const TABS=[['dash','📊 الإحصائيات'],['content','✍️ محتوى الموقع'],['stores','🏪 المتاجر'],['cats','🗂 الأقسام'],['products','📦 المنتجات'],['collector','⚙️ الجامع'],['tools','🛠 أدوات متقدمة']];
 function show(t){clearInterval(timer);$('tabs').innerHTML=TABS.map(([k,n])=>`<button class="${k===t?'on':''}" data-t="${k}">${n}</button>`).join('');
   $('tabs').onclick=e=>{const b=e.target.closest('button');if(b)show(b.dataset.t)};VIEWS[t]();scrollTo(0,0)}
 
@@ -184,6 +184,39 @@ products(){
   $('plist').onchange=async e=>{const s=e.target.closest('select[data-a="cat"]');if(!s)return;await rpc('admin_product',{pid:s.closest('.prod').dataset.id,patch:{category:s.value}});toast('القسم اتغيّر ✅')};
   const bulk=async hide=>{const w=$('bw').value.trim();if(w.length<2)return toast('اكتب كلمة');const n=await rpc('admin_bulk_hide',{pattern:w,hide});toast((hide?'اتخفى ':'ظهر ')+n+' منتج')};
   $('bh').onclick=()=>bulk(true);$('bs').onclick=()=>bulk(false);
+},
+async tools(){
+  const s=SITE,M=s.maintenance||{};
+  $('view').innerHTML=`
+  <div class="card"><h3>🗑 مسح كل منتجات متجر</h3><p class="mute">بيمسح المنتجات وتاريخ أسعارها نهائياً. لو الجامع لسه شغّال على المتجر ده هيرجع يجمعه — اقفل مصدره من تاب الجامع الأول.</p>
+    <div class="row"><select id="dStore" style="flex:1">${STORES.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select><button class="btn r" id="dGo">مسح الكل</button></div><p class="mute" id="dProg"></p></div>
+  <div class="card"><h3>⚡ إجراءات جماعية</h3><p class="mute">اختار متجر و/أو قسم و/أو كلمة، وبعدين الإجراء.</p>
+    <div class="grid"><div><label>المتجر</label><select id="bStore"><option value="">كل المتاجر</option>${STORES.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></div>
+    <div><label>القسم</label><select id="bCat"><option value="">كل الأقسام</option>${CATS.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></div>
+    <div><label>كلمة في الاسم</label><input id="bWord" placeholder="اختياري"></div></div><br>
+    <div class="row"><button class="btn r" data-b="hide">🙈 إخفاء</button><button class="btn g" data-b="show">👁 إظهار</button><button class="btn" data-b="reset">↺ مسح علامات نزول السعر</button></div></div>
+  <div class="card"><h3>🚫 كلمات ممنوعة</h3><p class="mute">أي منتج <b>جديد</b> اسمه فيه كلمة منهم بيتخفى تلقائياً (كلمة في كل سطر). ولتطبيقها على الموجود استخدم الإجراءات الجماعية.</p>
+    <textarea id="bw">${esc((s.blocked_words||[]).join('\n'))}</textarea><br><br><button class="btn p" id="bwSave">حفظ</button></div>
+  <div class="card"><h3>🎛 إعدادات العرض</h3>
+    <label>أقل نسبة خصم تظهر في "كل العروض" (المنتجات اللي سعرها نزل بتظهر دايماً)</label><input id="minD" type="number" min="0" max="90" value="${s.min_discount??0}">
+    <label>الترتيب الافتراضي لصفحة العروض</label><select id="defS">${[['new','الأحدث'],['drop','أكبر نزول في السعر'],['score','أقوى لقطة'],['pct','أعلى خصم'],['cheap','الأرخص']].map(([k,n])=>`<option value="${k}" ${k===(s.default_sort||'new')?'selected':''}>${n}</option>`).join('')}</select>
+    <br><br><button class="btn p" id="dispSave">حفظ</button></div>
+  <div class="card"><h3>🛠 وضع الصيانة</h3><div class="sw"><span>قفل الموقع للزوار</span>${tog('mOn',M.on)}</div>
+    <label>الرسالة</label><input id="mText" value="${esc(M.text)}" placeholder="الموقع تحت الصيانة — راجعين قريب جداً"><br><br><button class="btn p" id="mSave">حفظ</button></div>
+  <div class="card"><h3>🧹 تنضيف قاعدة البيانات</h3><p class="mute">مسح تاريخ الأسعار الأقدم من عدد أيام (لتوفير المساحة).</p>
+    <div class="row"><input id="pDays" type="number" value="60" style="width:110px"><span class="mute">يوم</span><button class="btn r" id="pGo">مسح الأقدم</button></div></div>
+  <div class="card"><h3>🔑 تغيير كلمة السر</h3><div class="row"><input id="npw" type="password" placeholder="كلمة السر الجديدة (8 حروف على الأقل)" style="flex:1"><button class="btn p" id="npwGo">تغيير</button></div></div>`;
+  $('dGo').onclick=async()=>{const k=$('dStore').value,n=$('dStore').selectedOptions[0].text;
+    if(prompt(`لتأكيد مسح كل منتجات "${n}" نهائياً اكتب اسم المتجر:`)!==n)return toast('اتلغى');
+    let total=0,c;do{c=await rpc('admin_delete_store',{st:k});total+=c;$('dProg').textContent='اتمسح '+total+' منتج…'}while(c>0);toast('اتمسح '+total+' منتج ✅')};
+  document.querySelectorAll('[data-b]').forEach(b=>b.onclick=async()=>{const f={};if($('bStore').value)f.store=$('bStore').value;if($('bCat').value)f.category=$('bCat').value;if($('bWord').value.trim())f.word=$('bWord').value.trim();
+    if(!Object.keys(f).length&&!confirm('مفيش فلتر — ده هيطبق على كل المنتجات. متأكد؟'))return;
+    const p={hide:{hidden:true},show:{hidden:false},reset:{reset_drops:true}}[b.dataset.b];const n=await rpc('admin_bulk',{filt:f,patch:p});toast('اتطبق على '+n+' منتج ✅')});
+  $('bwSave').onclick=()=>setCfg('blocked_words',$('bw').value.split('\n').map(x=>x.trim()).filter(x=>x.length>1));
+  $('dispSave').onclick=async()=>{await setCfg('min_discount',+$('minD').value||0);await setCfg('default_sort',$('defS').value)};
+  $('mSave').onclick=()=>setCfg('maintenance',{on:$('mOn').checked,text:$('mText').value.trim()||null});
+  $('pGo').onclick=async()=>{const d=+$('pDays').value;if(!confirm('مسح تاريخ الأسعار الأقدم من '+d+' يوم؟'))return;const n=await rpc('admin_prune_history',{days:d});toast('اتمسح '+n+' سطر')};
+  $('npwGo').onclick=async()=>{const p=$('npw').value;if(p.length<8)return toast('8 حروف على الأقل');await rpc('admin_change_password',{newpw:p});TOKEN=p;try{localStorage.setItem('adm',p)}catch(e){}toast('اتغيرت ✅')};
 },
 async collector(){
   const s=await rpc('admin_stats');const c=s.config||{};
