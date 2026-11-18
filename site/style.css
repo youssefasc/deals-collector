@@ -82,6 +82,6 @@ canvas{width:100%;height:220px;background:var(--card);border:1px solid var(--lin
 .since{color:var(--mute);font-size:12px;margin:8px 0 0}
 .buybar{position:fixed;left:0;right:0;bottom:0;z-index:35;display:flex;gap:10px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(15,17,21,.95);backdrop-filter:blur(10px);border-top:1px solid var(--line)}
 .buybar .buy{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;font-size:16px;padding:14px}.buybar .buy small{background:#0002;border-radius:8px;padding:2px 8px;font-size:13px}
-.buybar .share{width:54px;font-size:20px;padding:0}
+.buybar .share{flex:0 0 auto;font-size:14px;padding:0 14px;font-weight:700;white-space:nowrap}
 body.pp-open .fab{display:none}body.pp-open main{padding-bottom:100px}body.pp-open .foot{padding-bottom:96px}
 @media(min-width:761px){.buybar{position:static;padding:0;background:none;border:0;margin:16px 0 0;max-width:1180px}}

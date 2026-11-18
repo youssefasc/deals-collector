@@ -97,7 +97,7 @@ async function product(id){
   <h3 class="hist-h">📈 تاريخ السعر</h3>
   <canvas id="cv" class="${hist.length<2?'small':''}"></canvas>
   <p class="since">آخر تغيير في السعر ${ago(p.last_change)} · بنتابعه ${ago(p.first_seen)}</p></div></div>
-  <div class="buybar"><a class="btn buy" href="${esc(p.url)}" target="_blank" rel="noopener sponsored">🛒 اشتري من ${storeName(p.store)} <small>${fmt(p.price)} ج</small></a><button class="btn share" id="share" aria-label="مشاركة">🔗</button></div>`;
+  <div class="buybar"><a class="btn buy" href="${esc(p.url)}" target="_blank" rel="noopener sponsored">🛒 اشتري من ${storeName(p.store)} <small>${fmt(p.price)} ج</small></a><button class="btn share" id="share">🔗 مشاركة</button></div>`;
   chart(document.getElementById('cv'),hist);
   document.getElementById('share').onclick=()=>{const u=location.href;navigator.share?navigator.share({title:p.title,url:u}).catch(()=>{}):navigator.clipboard.writeText(u).then(()=>toast('اتنسخ اللينك ✅'))};
   scrollTo(0,0);
