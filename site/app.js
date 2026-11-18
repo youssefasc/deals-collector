@@ -5,7 +5,7 @@ const CATS=[['','الكل'],['mobiles','موبايلات'],['tablets','تابل�
 const SORTS=[['new','🆕 أحدث نزول'],['score','🔥 أقوى لقطة'],['pct','٪ أعلى خصم'],['low','📉 أقل سعر في تاريخه'],['cheap','💸 الأرخص']];
 const PCTS=[[0,'أي خصم'],[20,'+20%'],[40,'+40%'],[60,'+60%'],[80,'+80%']];
 const BOT_URL='https://t.me/AmazonEGOffersBot';
-const STORES=[['amazon','أمازون مصر','amazon.eg',1],['amazon_resale','أمازون مستعمل','amazon.eg',0],['amazon_now','أمازون ناو','amazon.eg',0],['noon','نون مصر','noon.com',0],['noon_minutes','نون مينتس','noon.com',0],['jumia','جوميا','jumia.com.eg',0],['talabat','طلبات مارت','talabat.com',0],['breadfast','بريد فاست','breadfast.com',0],['carrefour','كارفور','carrefouregypt.com',0],['btech','B.TECH','btech.com',0],['2b','2B','2b.com.eg',0]];
+const STORES=[['amazon','أمازون مصر','amazon.eg',1],['amazon_resale','أمازون مستعمل','amazon.eg',0],['amazon_now','أمازون ناو','amazon.eg',0],['noon','نون مصر','noon.com',0],['noon_minutes','نون مينتس','noon.com',0],['jumia','جوميا','jumia.com.eg',0],['talabat','طلبات مارت','talabat.com',0],['breadfast','بريد فاست','breadfast.com',0],['carrefour','كارفور','carrefouregypt.com',0],['btech','B.TECH','btech.com',0],['2b','2B','2b.com.eg',0],['vodafone','فودافون','vodafone.com.eg',0],['etisalat','اتصالات','eand.com.eg',0],['orange','أورنج','orange.eg',0],['we','وي WE','te.eg',0]];
 const st={store:'',sort:'new',cat:'',pct:0,q:'',limit:48,seen:new Set(),first:true};
 const fmt=n=>n==null?'':Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
 const ago=t=>{const s=(Date.now()-new Date(t))/1000;if(s<60)return'من ثواني';if(s<3600)return'من '+Math.floor(s/60)+' د';if(s<86400)return'من '+Math.floor(s/3600)+' س';return'من '+Math.floor(s/86400)+' يوم'};
