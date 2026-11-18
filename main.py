@@ -74,9 +74,13 @@ def cfg(k, default):
     return default if v is None else v
 
 
+_STORE_OF = {"deals": "amazon", "hot": "amazon", "search": "amazon", "nodes": "amazon", "top": "amazon",
+             "now": "amazon_now", "resale": "amazon_resale"}
+
+
 async def gate(name: str):
-    """بيوقف اللفة لو اتقفلت من لوحة التحكم (أو لو الجامع كله واقف)."""
-    while CFG.get("paused") or CFG.get("off_" + name):
+    """بيوقف اللفة لو اتقفلت من لوحة التحكم (أو لو المتجر بتاعها اتقفل، أو الجامع كله واقف)."""
+    while CFG.get("paused") or CFG.get("off_" + name) or CFG.get("off_store_" + _STORE_OF.get(name, "")):
         await asyncio.sleep(10)
 
 

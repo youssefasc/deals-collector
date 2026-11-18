@@ -142,8 +142,9 @@ content(){
   $('saveC').onclick=()=>setCfg('colors',{brand:$('c1').value,brand2:$('c2').value,bg:$('c3').value});
   $('resetC').onclick=async()=>{await setCfg('colors',null);VIEWS.content()};
 },
-stores(){
-  const o=SITE.stores||{};
+async stores(){
+  const o=SITE.stores||{};let ccfg={};try{ccfg=(await rpc('admin_stats')).config||{}}catch(e){}
+  const HAS=['amazon','amazon_now','amazon_resale'];
   const all=STORES.map(([k,n])=>[k,n,false]).concat(Object.keys(o).filter(k=>!STORES.some(s=>s[0]===k)).map(k=>[k,o[k].name||k,true]));
   const dom=k=>(o[k]&&o[k].domain)||({amazon:'amazon.eg',amazon_resale:'amazon.eg',amazon_now:'amazon.eg',noon:'noon.com',noon_minutes:'noon.com',jumia:'jumia.com.eg',talabat:'talabat.com',breadfast:'breadfast.com',carrefour:'carrefouregypt.com',btech:'btech.com','2b':'2b.com.eg',vodafone:'vodafone.com.eg',etisalat:'eand.com.eg',orange:'orange.eg',we:'te.eg'})[k]||'';
   const logo=k=>(o[k]&&o[k].logo)||`https://www.google.com/s2/favicons?domain=${dom(k)}&sz=128`;
@@ -152,18 +153,20 @@ stores(){
     <label>اللوجو (اختياري — لو مفيش هنجيبه من موقع المتجر)</label><input id="nsLogo" type="file" accept="image/*">
     <div class="sw"><span>مباشر</span>${tog('nsOn',false)}</div>
     <button class="btn p" id="nsAdd">إضافة المتجر</button></div>
-  <div class="card"><h3>🏪 المتاجر</h3><p class="mute">"مباشر" = بيتعرض كمتجر شغّال. "مخفي" = مش هيظهر في الموقع خالص. دوس على اللوجو عشان تغيّره.</p>
+  <div class="card"><h3>🏪 المتاجر</h3><p class="mute">"🤖 الجامع" = بيجمع منتجات المتجر ده ولا واقف (بيتطبق خلال 30 ثانية). "مباشر" = بيتعرض كمتجر شغّال. "مخفي" = مش هيظهر في الموقع خالص. دوس على اللوجو عشان تغيّره.</p>
   ${all.map(([k,n,custom])=>{const c=o[k]||{};const on=c.on===undefined?LIVE.includes(k):c.on;return `<div class="sw" style="flex-wrap:wrap">
     <label style="margin:0;cursor:pointer"><img id="lg_${k}" src="${esc(logo(k))}" style="width:44px;height:44px;border-radius:12px;background:#fff;object-fit:contain;padding:4px"><input type="file" accept="image/*" data-logo="${k}" hidden></label>
     <input data-n="${k}" value="${esc(c.name||n)}" style="flex:1;min-width:120px">
-    <span class="row"><span class="mute">مباشر</span>${tog('on_'+k,on)}<span class="mute">مخفي</span>${tog('hd_'+k,c.hidden)}${custom?`<button class="btn r" data-rm="${k}">🗑</button>`:''}</span></div>`}).join('')}
+    <span class="row">${HAS.includes(k)?`<span class="mute">🤖 الجامع</span>${tog('col_'+k,!ccfg['off_store_'+k])}`:'<span class="mute" style="font-size:11px">مفيش جامع لسه</span>'}<span class="mute">مباشر</span>${tog('on_'+k,on)}<span class="mute">مخفي</span>${tog('hd_'+k,c.hidden)}${custom?`<button class="btn r" data-rm="${k}">🗑</button>`:''}</span></div>`}).join('')}
   <br><button class="btn p" id="saveS">حفظ المتاجر</button></div>`;
   const pending={};
   const shrink=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const s=160,cv=document.createElement('canvas');cv.width=cv.height=s;const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,s,s);const sc=Math.min(s/im.width,s/im.height);x.drawImage(im,(s-im.width*sc)/2,(s-im.height*sc)/2,im.width*sc,im.height*sc);res(cv.toDataURL('image/png'))};im.onerror=rej;im.src=r.result};r.readAsDataURL(f)});
   $('view').onchange=async e=>{const k=e.target.dataset.logo;if(!k||!e.target.files[0])return;pending[k]=await shrink(e.target.files[0]);$('lg_'+k).src=pending[k];toast('اتغيّرت — دوس حفظ المتاجر')};
   const save=async extra=>{const out=Object.assign({},SITE.stores||{});all.forEach(([k,n])=>{const nm=document.querySelector(`[data-n="${k}"]`).value.trim();const prev=out[k]||{};
       out[k]=Object.assign(prev,{on:$('on_'+k).checked,hidden:$('hd_'+k).checked});if(nm&&nm!==n)out[k].name=nm;if(pending[k])out[k].logo=pending[k]});
-    Object.assign(out,extra||{});await setCfg('stores',out);VIEWS.stores()};
+    Object.assign(out,extra||{});await setCfg('stores',out);
+    const nc=Object.assign({},ccfg);HAS.forEach(k=>{const t=$('col_'+k);if(!t)return;if(t.checked)delete nc['off_store_'+k];else nc['off_store_'+k]=true});
+    await rpc('admin_set_collector',{cfg:nc});VIEWS.stores()};
   $('saveS').onclick=()=>save();
   $('nsAdd').onclick=async()=>{const name=$('nsName').value.trim();if(!name)return toast('اكتب اسم المتجر');
     const d=$('nsDom').value.trim().replace(/^https?:\/\//,'').replace(/\/.*$/,'');const key='c_'+Date.now().toString(36);
@@ -276,7 +279,7 @@ async collector(){
       <div><label>عدد صفحات الأكثر مبيعاً</label><input id="top_pages" type="number" min="1" max="20" value="${c.top_pages??4}"></div>
     </div></div>
   <button class="btn p" id="saveX" style="width:100%;padding:14px">حفظ إعدادات الجامع</button>`;
-  $('saveX').onclick=async()=>{const out={paused:$('paused').checked};LOOPS.forEach(([k])=>{if(!$('loop_'+k).checked)out['off_'+k]=true});
+  $('saveX').onclick=async()=>{const out={paused:$('paused').checked};Object.keys(c).filter(k=>k.startsWith('off_store_')).forEach(k=>out[k]=c[k]);LOOPS.forEach(([k])=>{if(!$('loop_'+k).checked)out['off_'+k]=true});
     ['sweep_delay','search_delay','node_delay','top_delay','top_pages'].forEach(k=>{const v=parseFloat($(k).value);if(!isNaN(v))out[k]=v});
     await rpc('admin_set_collector',{cfg:out});toast('اتحفظ — هيتطبق خلال 30 ثانية ✅')};
 }};
