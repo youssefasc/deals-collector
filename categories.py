@@ -20,7 +20,7 @@ def categorize(gl: str, ptype: str) -> str:
         return "tvs"
     if pt in ("HEADPHONES", "SPEAKERS", "EARBUDS", "SOUNDBAR") or "HEADPHONE" in pt or "SPEAKER" in pt:
         return "audio"
-    if "WATCH" in pt and gl in ("gl_wireless", "gl_ce", "gl_watch"):
+    if "WATCH" in pt and gl in ("gl_wireless", "gl_ce") and "BAND" not in pt and "STRAP" not in pt:
         return "smartwatches"
     if gl in ("gl_major_appliances",) or pt in ("WASHER", "DRYER", "REFRIGERATOR", "AIR_CONDITIONER", "MICROWAVE_OVEN"):
         return "appliances"

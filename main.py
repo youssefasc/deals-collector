@@ -170,6 +170,18 @@ class Amazon:
                             q2["filters"] = json.dumps(f2, separators=(",", ":"))
                             self.feeds[f"{src}#{dep_name}"] = (parts, q2)
                         log(f"   + {len(DEPARTMENTS)} department feeds")
+                    # مرة واحدة: نطلب "الفلاتر المتاحة" عشان نعرف نقسّم بإيه (ماركات، أسعار، أقسام)
+                    q3 = dict(q)
+                    q3["calculateRefinements"] = "true"
+                    q3["startIndex"] = "0"
+                    u3 = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q3), ""))
+                    d3 = await self._eval(u3)
+                    if isinstance(d3, dict):
+                        log("REFINE keys:", list(d3.keys())[:20])
+                        ref = d3.get("refinements") or d3.get("refinementGroups") or {}
+                        txt = json.dumps(ref, ensure_ascii=False)
+                        for i in range(0, min(len(txt), 6000), 500):
+                            log("REFINE", txt[i:i+500])
                 except Exception as e:
                     log("department feeds error", str(e)[:100])
                 log("feed found:", src)
