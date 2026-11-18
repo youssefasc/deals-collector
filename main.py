@@ -43,6 +43,12 @@ DEPARTMENTS = [
     ("18022219031", "musical_instruments"), ("18029450031", "other"),
 ]
 
+# صفحات بحث أمازون بفلتر "كل الخصومات" — فيها آلاف عروض السوبرماركت والمنظفات اللي مش موجودة في صفحة العروض
+SEARCH_SOURCES = [s.split(":") for s in os.environ.get(
+    "SEARCH_SOURCES", "grocery:grocery,hpc:health,baby:kids,beauty:beauty").split(",") if ":" in s]
+SEARCH_DELAY = float(os.environ.get("SEARCH_DELAY", "2.0"))
+SEARCH_MAX_PAGES = int(os.environ.get("SEARCH_MAX_PAGES", "400"))
+
 PRICE_BANDS = [(1, 100), (100, 250), (250, 500), (500, 1000), (1000, 2500), (2500, 5000),
                (5000, 15000), (15000, 200000)]
 
@@ -238,6 +244,80 @@ class Amazon:
         return out
 
 
+SEARCH_JS = """async (u) => {
+  try {
+    const r = await fetch(u, {credentials: 'include'});
+    if (!r.ok) return {err: r.status};
+    const d = new DOMParser().parseFromString(await r.text(), 'text/html');
+    const num = s => { if (!s) return null; const v = parseFloat(s.replace(/[^0-9.,]/g, '').replace(/,/g, '')); return isNaN(v) ? null : v; };
+    const items = [...d.querySelectorAll('[data-component-type="s-search-result"][data-asin]')]
+      .filter(e => e.dataset.asin && !e.querySelector('.puis-sponsored-label-text'))
+      .map(e => ({
+        asin: e.dataset.asin,
+        title: (e.querySelector('h2')?.getAttribute('aria-label') || e.querySelector('h2')?.textContent || '').trim(),
+        price: num(e.querySelector('.a-price:not(.a-text-price) .a-offscreen')?.textContent),
+        list: num(e.querySelector('.a-price.a-text-price .a-offscreen')?.textContent),
+        img: e.querySelector('img.s-image')?.getAttribute('src') || null,
+        oos: /غير متوفر|Currently unavailable/i.test(e.textContent)
+      }));
+    const blocked = /captcha|عذر/i.test(d.title || '') ;
+    return {items, blocked, hasNext: !!d.querySelector('.s-pagination-next:not(.s-pagination-disabled)')};
+  } catch (e) { return {err: String(e)}; }
+}"""
+
+
+def search_item(x: dict, cat: str):
+    price, lst = x.get("price"), x.get("list")
+    if not x.get("asin") or not price:
+        return None
+    pct = round((1 - price / lst) * 100) if lst and lst > price else None
+    img = x.get("img")
+    if img:
+        img = re.sub(r"\._[^/]*_\.", "._AC_SL500_.", img)
+    return {"store": "amazon", "pid": x["asin"].upper(), "title": (x.get("title") or "")[:300], "image": img,
+            "url": f"https://www.amazon.eg/dp/{x['asin'].upper()}?tag={AMAZON_TAG}",
+            "price": price, "list_price": lst, "discount_pct": pct,
+            "category": cat, "src_category": "search", "in_stock": not x.get("oos")}
+
+
+async def search_loop(amz, db: "DB"):
+    """بنلف على صفحات البحث بفلتر الخصومات (سوبرماركت، منظفات…) صفحة صفحة."""
+    while True:
+        for alias, cat in SEARCH_SOURCES:
+            t0, total, page = time.time(), 0, 1
+            while page <= SEARCH_MAX_PAGES:
+                if time.time() < amz.backoff_until:
+                    await asyncio.sleep(5)
+                    continue
+                url = (f"https://www.amazon.eg/s?i={alias}&rh=p_n_deal_type%3A26901036031"
+                       f"&language=ar_AE&page={page}")
+                stats["requests"] += 1
+                try:
+                    res = await amz.page.evaluate(SEARCH_JS, url)
+                except Exception as e:
+                    stats["errors"] += 1
+                    log("search error", str(e)[:100])
+                    await asyncio.sleep(10)
+                    break
+                if res.get("err") or res.get("blocked"):
+                    stats["errors"] += 1
+                    if res.get("err") in (403, 429, 503) or res.get("blocked"):
+                        amz.backoff_until = time.time() + 60
+                        log("search blocked:", res.get("err") or "captcha", "— backing off 1 min")
+                    break
+                items = [i for i in (search_item(x, cat) for x in res.get("items") or []) if i]
+                stats["items"] += len(items)
+                if items:
+                    total += len(items)
+                    await db.ingest(items)
+                if not res.get("hasNext"):
+                    break
+                page += 1
+                await asyncio.sleep(SEARCH_DELAY + random.uniform(0, 1.0))
+            log(f"search done: {alias} → {total} products, {page} pages in {int(time.time() - t0)}s")
+        await asyncio.sleep(30)
+
+
 async def hot_loop(amz: Amazon, db: DB):
     while True:
         t0 = time.time()
@@ -303,13 +383,23 @@ async def main():
         await page.goto("https://www.amazon.eg/", wait_until="domcontentloaded", timeout=45000)
         await asyncio.sleep(3)
         amz = Amazon(page)
-        await amz.discover()
-        if not amz.feeds:
-            log("no feeds — retrying in 5 min")
-            await asyncio.sleep(300)
-            return
-        await asyncio.gather(hot_loop(amz, db), sweep_loop(amz, db), stats_loop(db),
-                             refresh_loop(amz))
+        # لو أمازون رجّع صفحة "عذرًا" نحاول تاني بعد شوية بدل ما نقف ٥ دقايق
+        for attempt in range(6):
+            await amz.discover()
+            if amz.feeds:
+                break
+            log(f"no feeds (attempt {attempt + 1}) — retrying in 30s")
+            await asyncio.sleep(30)
+            try:
+                await page.goto("https://www.amazon.eg/", wait_until="domcontentloaded", timeout=45000)
+            except Exception:
+                pass
+        loops = [search_loop(amz, db), stats_loop(db), refresh_loop(amz)]
+        if amz.feeds:
+            loops += [hot_loop(amz, db), sweep_loop(amz, db)]
+        else:
+            log("deals feed not found — running search sources only")
+        await asyncio.gather(*loops)
 
 
 async def refresh_loop(amz: Amazon):
