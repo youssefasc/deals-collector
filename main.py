@@ -47,6 +47,12 @@ DEPARTMENTS = [
 # صفحات بحث أمازون بفلتر "كل الخصومات" — فيها آلاف عروض السوبرماركت والمنظفات اللي مش موجودة في صفحة العروض
 SEARCH_SOURCES = [s.split(":") for s in os.environ.get(
     "SEARCH_SOURCES", "grocery:grocery,hpc:health,baby:kids,beauty:beauty").split(",") if ":" in s]
+# أقسام بنجمع منها **كل** المنتجات (مش المخفّضة بس) — عشان نلقط أي نزول سعر
+# الصيغة: رقم القسم في أمازون : التصنيف (smart = بنحدد موبايل/إكسسوار… من اسم المنتج)
+NODE_SOURCES = [s.split(":") for s in os.environ.get("NODE_SOURCES",
+    "18020637031:grocery,21832868031:phones,21832872031:computers,21832881031:tvs_node,"
+    "21832869031:audio,21832878031:smartwatches").split(",") if ":" in s]
+NODE_DELAY = float(os.environ.get("NODE_DELAY", "2.0"))
 SEARCH_DELAY = float(os.environ.get("SEARCH_DELAY", "1.0"))
 SEARCH_MAX_PAGES = int(os.environ.get("SEARCH_MAX_PAGES", "400"))
 
@@ -281,12 +287,43 @@ def search_item(x: dict, cat: str):
             "category": cat, "src_category": "search", "in_stock": not x.get("oos")}
 
 
+_ACC = re.compile(r"جراب|كفر|غطاء|حافظة|اسكرينة|واقي|لاصقة|شاحن|كابل|كيبل|حامل|ستاند|سماعة|باور ?بانك|"
+                  r"case|cover|protector|charger|cable|holder|stand|adapter|mount|strap|sleeve|bag|حقيبة|شنطة", re.I)
+
+
+def classify(cat: str, title: str) -> str:
+    t = title or ""
+    if cat == "phones":
+        if _ACC.search(t):
+            return "mobile_acc"
+        if re.search(r"تابلت|تاب |ايباد|آيباد|ipad|tablet|galaxy tab|\bpad\b", t, re.I):
+            return "tablets"
+        if re.search(r"موبايل|هاتف|جوال|تليفون|iphone|galaxy|redmi|xiaomi|poco|oppo|realme|vivo|honor|infinix|tecno|nokia|motorola|phone", t, re.I):
+            return "mobiles"
+        return "mobile_acc"
+    if cat == "computers":
+        if _ACC.search(t):
+            return "computer_acc"
+        if re.search(r"لابتوب|لاب توب|laptop|notebook|macbook|chromebook", t, re.I):
+            return "laptops"
+        if re.search(r"تابلت|ايباد|آيباد|ipad|tablet", t, re.I):
+            return "tablets"
+        return "computer_acc"
+    if cat == "tvs_node":
+        if re.search(r"تلفزيون|تليفزيون|شاشة|\btv\b|television|oled|qled", t, re.I) and not _ACC.search(t):
+            return "tvs"
+        return "electronics"
+    return cat
+
+
 async def search_loop(amz, db: "DB"):
-    """كل مصدر بحث (سوبرماركت، منظفات…) بيتلف عليه بالتوازي مع الباقيين."""
-    await asyncio.gather(*(search_source_loop(amz, db, a, c) for a, c in SEARCH_SOURCES))
+    """كل مصدر بحث (سوبرماركت، منظفات، موبايلات…) بيتلف عليه بالتوازي مع الباقيين."""
+    tasks = [search_source_loop(amz, db, a, c) for a, c in SEARCH_SOURCES]
+    tasks += [search_source_loop(amz, db, n, c, node=True) for n, c in NODE_SOURCES]
+    await asyncio.gather(*tasks)
 
 
-async def search_source_loop(amz, db: "DB", alias: str, cat: str):
+async def search_source_loop(amz, db: "DB", alias: str, cat: str, node: bool = False):
     while True:
         if True:
             t0, total, page = time.time(), 0, 1
@@ -294,7 +331,8 @@ async def search_source_loop(amz, db: "DB", alias: str, cat: str):
                 if time.time() < amz.backoff_until:
                     await asyncio.sleep(5)
                     continue
-                url = (f"https://www.amazon.eg/s?i={alias}&rh=p_n_deal_type%3A26901036031"
+                url = (f"https://www.amazon.eg/s?rh=n%3A{alias}&fs=true&language=ar_AE&page={page}" if node else
+                       f"https://www.amazon.eg/s?i={alias}&rh=p_n_deal_type%3A26901036031"
                        f"&language=ar_AE&page={page}")
                 stats["requests"] += 1
                 try:
@@ -310,7 +348,7 @@ async def search_source_loop(amz, db: "DB", alias: str, cat: str):
                         amz.backoff_until = time.time() + 60
                         log("search blocked:", res.get("err") or "captcha", "— backing off 1 min")
                     break
-                items = [i for i in (search_item(x, cat) for x in res.get("items") or []) if i]
+                items = [i for i in (search_item(x, classify(cat, x.get("title"))) for x in res.get("items") or []) if i]
                 stats["items"] += len(items)
                 if items:
                     total += len(items)
@@ -318,7 +356,7 @@ async def search_source_loop(amz, db: "DB", alias: str, cat: str):
                 if not res.get("hasNext"):
                     break
                 page += 1
-                await asyncio.sleep(SEARCH_DELAY + random.uniform(0, 1.0))
+                await asyncio.sleep((NODE_DELAY if node else SEARCH_DELAY) + random.uniform(0, 1.0))
             log(f"search done: {alias} → {total} products, {page} pages in {int(time.time() - t0)}s")
         await asyncio.sleep(20)
 
