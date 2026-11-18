@@ -58,7 +58,7 @@ const H={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json
 const STORES=[['amazon','أمازون مصر'],['amazon_resale','أمازون مستعمل'],['amazon_now','أمازون ناو'],['noon','نون مصر'],['noon_minutes','نون مينتس'],['jumia','جوميا'],['talabat','طلبات مارت'],['breadfast','بريد فاست'],['carrefour','كارفور'],['btech','B.TECH'],['2b','2B'],['vodafone','فودافون'],['etisalat','اتصالات'],['orange','أورنج'],['we','وي WE']];
 const LIVE=['amazon','amazon_resale','amazon_now'];
 const CATS=[['mobiles','موبايلات'],['tablets','تابلت'],['laptops','لابتوب'],['tvs','شاشات'],['audio','سماعات'],['smartwatches','ساعات ذكية'],['appliances','أجهزة منزلية'],['electronics','إلكترونيات'],['gaming','ألعاب فيديو'],['grocery','سوبرماركت'],['beauty','جمال'],['health','صحة ونظافة'],['home','البيت والمطبخ'],['fashion','موضة'],['kids','أطفال'],['sports','رياضة'],['computer_acc','إكسسوارات كمبيوتر'],['mobile_acc','إكسسوارات موبايل'],['auto','عربيات'],['books_office','كتب ومكتب'],['other','أخرى']];
-const LOOPS=[['deals','صفحة عروض أمازون (Today\'s Deals)'],['hot','الفحص السريع لصفحة العروض (كل 10 ثواني)'],['search','بحث الخصومات (سوبرماركت، منظفات، أطفال، جمال)'],['nodes','كل منتجات الأقسام (موبايلات، لابتوب، شاشات، بقالة…)'],['top','الفحص المتكرر للأكثر مبيعاً'],['now','أمازون ناو'],['resale','أمازون مستعمل']];
+const LOOPS=[['deals','صفحة عروض أمازون (Today\'s Deals)'],['hot','الفحص السريع لصفحة العروض (كل 10 ثواني)'],['search','بحث الخصومات (سوبرماركت، منظفات، أطفال، جمال)'],['nodes','كل منتجات الأقسام (موبايلات، لابتوب، شاشات، بقالة…)'],['top','الفحص المتكرر للأكثر مبيعاً'],['now','أمازون ناو'],['resale','أمازون مستعمل'],['coupons','جمع كوبونات أمازون (اللي ظاهرة على المنتجات)']];
 let TOKEN='';try{TOKEN=localStorage.getItem('adm')||''}catch(e){}
 let SITE={},timer;
 const $=id=>document.getElementById(id);
@@ -81,13 +81,13 @@ async function login(){
 $('loginBtn').onclick=login;$('pw').onkeydown=e=>{if(e.key==='Enter')login()};
 $('logout').onclick=()=>{try{localStorage.removeItem('adm')}catch(e){}location.reload()};
 
-const TABS=[['dash','📊 الإحصائيات'],['content','✍️ محتوى الموقع'],['stores','🏪 المتاجر'],['cats','🗂 الأقسام'],['products','📦 المنتجات'],['collector','⚙️ الجامع'],['tools','🛠 أدوات متقدمة']];
+const TABS=[['dash','📊 الإحصائيات'],['content','✍️ محتوى الموقع'],['stores','🏪 المتاجر'],['cats','🗂 الأقسام'],['products','📦 المنتجات'],['collector','⚙️ الجامع'],['coupons','🎟 الكوبونات'],['tools','🛠 أدوات متقدمة']];
 function show(t){clearInterval(timer);$('tabs').innerHTML=TABS.map(([k,n])=>`<button class="${k===t?'on':''}" data-t="${k}">${n}</button>`).join('');
   $('tabs').onclick=e=>{const b=e.target.closest('button');if(b)show(b.dataset.t)};VIEWS[t]();scrollTo(0,0)}
 
 const VIEWS={
 async dash(){
-  const draw=async()=>{let s;try{s=await rpc('admin_stats')}catch(e){$('view').innerHTML='<div class="card">حصل خطأ</div>';return}
+  const draw=async()=>{let s;try{s=await rpc('admin_stats')}catch(e){if(!$('view').innerHTML.trim())$('view').innerHTML='<div class="card">بيحمّل…</div>';return}
     const c=s.collector||{};const age=s.collector_at?Math.round((Date.now()-new Date(s.collector_at))/1000):null;
     const pct=Math.min(100,Math.round(s.db_bytes/5e8*100));
     $('view').innerHTML=`
@@ -106,7 +106,7 @@ async dash(){
       <div class="stat"><small>نزل سعره آخر 24 ساعة</small><b>${fmt(s.drops_24h)}</b></div>
       <div class="stat"><small>اتفحص آخر 10 دقايق</small><b>${fmt(s.seen_10m)}</b></div>
       <div class="stat"><small>مخفي</small><b>${fmt(s.hidden)}</b></div>
-      <div class="stat"><small>مميّز ⭐</small><b>${fmt(s.featured)}</b></div></div></div>
+      <div class="stat"><small>مميّز ⭐</small><b>${fmt(s.featured)}</b></div><div class="stat"><small>كوبونات شغّالة</small><b>${fmt(s.coupons)}</b></div></div></div>
     <div class="card"><h3>حسب المتجر</h3><div class="grid">${Object.entries(s.by_store||{}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="stat"><small>${esc((STORES.find(x=>x[0]===k)||[,k])[1])}</small><b>${fmt(v)}</b></div>`).join('')}</div></div>
     <div class="card"><h3>حسب القسم</h3><div class="grid">${Object.entries(s.by_cat||{}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="stat"><small>${esc((CATS.find(x=>x[0]===k)||[,k])[1])}</small><b>${fmt(v)}</b></div>`).join('')}</div></div>
     <div class="card"><h3>قاعدة البيانات</h3><div class="row" style="justify-content:space-between"><span>${s.db_size} من 500 MB (الخطة المجانية)</span><b>${pct}%</b></div><div class="bar"><i style="width:${pct}%"></i></div><p class="mute">سجل الأسعار: ${fmt(s.history_rows)} سطر</p></div>
@@ -144,11 +144,32 @@ content(){
 },
 stores(){
   const o=SITE.stores||{};
-  $('view').innerHTML=`<div class="card"><h3>🏪 المتاجر</h3><p class="mute">"مباشر" = بيتعرض كمتجر شغّال. "مخفي" = مش هيظهر في الموقع خالص. تقدر تغيّر الاسم.</p>
-  ${STORES.map(([k,n])=>{const c=o[k]||{};const on=c.on===undefined?LIVE.includes(k):c.on;return `<div class="sw" style="flex-wrap:wrap"><input data-n="${k}" value="${esc(c.name||n)}" style="flex:1;min-width:140px">
-    <span class="row"><span class="mute">مباشر</span>${tog('on_'+k,on)}<span class="mute">مخفي</span>${tog('hd_'+k,c.hidden)}</span></div>`}).join('')}
+  const all=STORES.map(([k,n])=>[k,n,false]).concat(Object.keys(o).filter(k=>!STORES.some(s=>s[0]===k)).map(k=>[k,o[k].name||k,true]));
+  const dom=k=>(o[k]&&o[k].domain)||({amazon:'amazon.eg',amazon_resale:'amazon.eg',amazon_now:'amazon.eg',noon:'noon.com',noon_minutes:'noon.com',jumia:'jumia.com.eg',talabat:'talabat.com',breadfast:'breadfast.com',carrefour:'carrefouregypt.com',btech:'btech.com','2b':'2b.com.eg',vodafone:'vodafone.com.eg',etisalat:'eand.com.eg',orange:'orange.eg',we:'te.eg'})[k]||'';
+  const logo=k=>(o[k]&&o[k].logo)||`https://www.google.com/s2/favicons?domain=${dom(k)}&sz=128`;
+  $('view').innerHTML=`<div class="card"><h3>➕ إضافة متجر جديد</h3>
+    <div class="grid"><div><label>اسم المتجر</label><input id="nsName" placeholder="مثلاً: سبينس"></div><div><label>موقع المتجر</label><input id="nsDom" placeholder="spinneys-egypt.com"></div></div>
+    <label>اللوجو (اختياري — لو مفيش هنجيبه من موقع المتجر)</label><input id="nsLogo" type="file" accept="image/*">
+    <div class="sw"><span>مباشر</span>${tog('nsOn',false)}</div>
+    <button class="btn p" id="nsAdd">إضافة المتجر</button></div>
+  <div class="card"><h3>🏪 المتاجر</h3><p class="mute">"مباشر" = بيتعرض كمتجر شغّال. "مخفي" = مش هيظهر في الموقع خالص. دوس على اللوجو عشان تغيّره.</p>
+  ${all.map(([k,n,custom])=>{const c=o[k]||{};const on=c.on===undefined?LIVE.includes(k):c.on;return `<div class="sw" style="flex-wrap:wrap">
+    <label style="margin:0;cursor:pointer"><img id="lg_${k}" src="${esc(logo(k))}" style="width:44px;height:44px;border-radius:12px;background:#fff;object-fit:contain;padding:4px"><input type="file" accept="image/*" data-logo="${k}" hidden></label>
+    <input data-n="${k}" value="${esc(c.name||n)}" style="flex:1;min-width:120px">
+    <span class="row"><span class="mute">مباشر</span>${tog('on_'+k,on)}<span class="mute">مخفي</span>${tog('hd_'+k,c.hidden)}${custom?`<button class="btn r" data-rm="${k}">🗑</button>`:''}</span></div>`}).join('')}
   <br><button class="btn p" id="saveS">حفظ المتاجر</button></div>`;
-  $('saveS').onclick=()=>{const out={};STORES.forEach(([k,n])=>{const nm=document.querySelector(`[data-n="${k}"]`).value.trim();out[k]={on:$('on_'+k).checked,hidden:$('hd_'+k).checked};if(nm&&nm!==n)out[k].name=nm});setCfg('stores',out)};
+  const pending={};
+  const shrink=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const s=160,cv=document.createElement('canvas');cv.width=cv.height=s;const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,s,s);const sc=Math.min(s/im.width,s/im.height);x.drawImage(im,(s-im.width*sc)/2,(s-im.height*sc)/2,im.width*sc,im.height*sc);res(cv.toDataURL('image/png'))};im.onerror=rej;im.src=r.result};r.readAsDataURL(f)});
+  $('view').onchange=async e=>{const k=e.target.dataset.logo;if(!k||!e.target.files[0])return;pending[k]=await shrink(e.target.files[0]);$('lg_'+k).src=pending[k];toast('اتغيّرت — دوس حفظ المتاجر')};
+  const save=async extra=>{const out=Object.assign({},SITE.stores||{});all.forEach(([k,n])=>{const nm=document.querySelector(`[data-n="${k}"]`).value.trim();const prev=out[k]||{};
+      out[k]=Object.assign(prev,{on:$('on_'+k).checked,hidden:$('hd_'+k).checked});if(nm&&nm!==n)out[k].name=nm;if(pending[k])out[k].logo=pending[k]});
+    Object.assign(out,extra||{});await setCfg('stores',out);VIEWS.stores()};
+  $('saveS').onclick=()=>save();
+  $('nsAdd').onclick=async()=>{const name=$('nsName').value.trim();if(!name)return toast('اكتب اسم المتجر');
+    const d=$('nsDom').value.trim().replace(/^https?:\/\//,'').replace(/\/.*$/,'');const key='c_'+Date.now().toString(36);
+    const st={name,domain:d,on:$('nsOn').checked,hidden:false};if($('nsLogo').files[0])st.logo=await shrink($('nsLogo').files[0]);
+    await save({[key]:st})};
+  $('view').onclick=async e=>{const b=e.target.closest('[data-rm]');if(!b)return;if(!confirm('مسح المتجر ده من القايمة؟'))return;const out=Object.assign({},SITE.stores);delete out[b.dataset.rm];await setCfg('stores',out);VIEWS.stores()};
 },
 cats(){
   const h=SITE.hidden_cats||[];
@@ -185,6 +206,27 @@ products(){
   const bulk=async hide=>{const w=$('bw').value.trim();if(w.length<2)return toast('اكتب كلمة');const n=await rpc('admin_bulk_hide',{pattern:w,hide});toast((hide?'اتخفى ':'ظهر ')+n+' منتج')};
   $('bh').onclick=()=>bulk(true);$('bs').onclick=()=>bulk(false);
 },
+async coupons(){
+  const rows=await rpc('admin_coupons_list');
+  const man=rows.filter(r=>r.source==='manual'),col=rows.filter(r=>r.source!=='manual');
+  $('view').innerHTML=`<div class="card"><h3>➕ إضافة كوبون (كود)</h3>
+    <div class="grid"><div><label>المتجر</label><select id="cS">${STORES.map(([k,n])=>`<option value="${k}" ${k==='noon'?'selected':''}>${n}</option>`).join('')}</select></div>
+    <div><label>الكود (أكتر من كود؟ افصل بمسافة)</label><input id="cC" placeholder="PZ25 PZ26 PZ27"></div>
+    <div><label>الخصم</label><input id="cD" placeholder="مثلاً 10% أو 50 جنيه"></div>
+    <div><label>ينتهي (اختياري)</label><input id="cE" type="date"></div></div>
+    <label>وصف (اختياري)</label><input id="cT" placeholder="مثلاً: على كل الطلبات فوق 300 جنيه">
+    <label>لينك (اختياري)</label><input id="cU" placeholder="https://...">
+    <br><br><button class="btn p" id="cAdd">إضافة</button></div>
+  <div class="card"><h3>كوبوناتك (${man.length})</h3>${man.map(r=>`<div class="sw"><div><b>${esc(r.code)}</b> <span class="tag">${esc((STORES.find(x=>x[0]===r.store)||[,r.store])[1])}</span> ${esc(r.discount||'')}<div class="mute">${esc(r.title||'')}${r.expires_at?' · ينتهي '+new Date(r.expires_at).toLocaleDateString('ar-EG'):''}</div></div>
+    <span class="row">${tog('ca_'+r.id,r.active)}<button class="btn r" data-del="${esc(r.id)}">🗑</button></span></div>`).join('')||'<p class="mute">مفيش لسه</p>'}</div>
+  <div class="card"><h3>كوبونات الجامع (${col.length})</h3><p class="mute">كوبونات أمازون اللي الجامع لقاها على المنتجات — بتتقفل لوحدها لو اختفت يومين. تشغيلها/إيقافها من تاب الجامع.</p>
+    ${col.slice(0,60).map(r=>`<div class="sw"><span style="font-size:13px">✂️ ${esc(r.discount)} — ${esc((r.title||'').slice(0,70))}</span><button class="btn r" data-del="${esc(r.id)}">🗑</button></div>`).join('')}</div>`;
+  $('cAdd').onclick=async()=>{const codes=$('cC').value.trim().split(/\s+/).filter(Boolean);if(!codes.length)return toast('اكتب الكود');
+    for(const code of codes)await rpc('admin_coupon',{c:{store:$('cS').value,code,discount:$('cD').value.trim(),title:$('cT').value.trim(),url:$('cU').value.trim(),expires_at:$('cE').value||null}});
+    toast('اتضاف ✅');VIEWS.coupons()};
+  $('view').onclick=async e=>{const b=e.target.closest('[data-del]');if(!b)return;if(!confirm('مسح الكوبون؟'))return;await rpc('admin_coupon',{c:{id:b.dataset.del,delete:true}});VIEWS.coupons()};
+  $('view').onchange=async e=>{const t=e.target;if(!t.id.startsWith('ca_'))return;const r=rows.find(x=>'ca_'+x.id===t.id);await rpc('admin_coupon',{c:Object.assign({},r,{active:t.checked})});toast('اتحفظ ✅')};
+},
 async tools(){
   const s=SITE,M=s.maintenance||{};
   $('view').innerHTML=`
@@ -194,8 +236,8 @@ async tools(){
     <div class="grid"><div><label>المتجر</label><select id="bStore"><option value="">كل المتاجر</option>${STORES.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></div>
     <div><label>القسم</label><select id="bCat"><option value="">كل الأقسام</option>${CATS.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></div>
     <div><label>كلمة في الاسم</label><input id="bWord" placeholder="اختياري"></div></div><br>
-    <div class="row"><button class="btn r" data-b="hide">🙈 إخفاء</button><button class="btn g" data-b="show">👁 إظهار</button><button class="btn" data-b="reset">↺ مسح علامات نزول السعر</button></div></div>
-  <div class="card"><h3>🚫 كلمات ممنوعة</h3><p class="mute">أي منتج <b>جديد</b> اسمه فيه كلمة منهم بيتخفى تلقائياً (كلمة في كل سطر). ولتطبيقها على الموجود استخدم الإجراءات الجماعية.</p>
+    <div class="row"><button class="btn r" data-b="hide">🙈 إخفاء</button><button class="btn g" data-b="show">👁 إظهار</button><button class="btn" data-b="reset">↺ مسح علامات نزول السعر</button><button class="btn r" data-b="del">🗑 مسح نهائي</button></div></div>
+  <div class="card"><h3>🚫 كلمات ممنوعة</h3><p class="mute">أي منتج اسمه فيه كلمة منهم <b>بيتمسح</b> — الموجود بيتمسح لما تدوس حفظ، والجديد مش بيتسجل أصلاً. (كلمة في كل سطر)</p>
     <textarea id="bw">${esc((s.blocked_words||[]).join('\n'))}</textarea><br><br><button class="btn p" id="bwSave">حفظ</button></div>
   <div class="card"><h3>🎛 إعدادات العرض</h3>
     <label>أقل نسبة خصم تظهر في "كل العروض" (المنتجات اللي سعرها نزل بتظهر دايماً)</label><input id="minD" type="number" min="0" max="90" value="${s.min_discount??0}">
@@ -211,8 +253,9 @@ async tools(){
     let total=0,c;do{c=await rpc('admin_delete_store',{st:k});total+=c;$('dProg').textContent='اتمسح '+total+' منتج…'}while(c>0);toast('اتمسح '+total+' منتج ✅')};
   document.querySelectorAll('[data-b]').forEach(b=>b.onclick=async()=>{const f={};if($('bStore').value)f.store=$('bStore').value;if($('bCat').value)f.category=$('bCat').value;if($('bWord').value.trim())f.word=$('bWord').value.trim();
     if(!Object.keys(f).length&&!confirm('مفيش فلتر — ده هيطبق على كل المنتجات. متأكد؟'))return;
+    if(b.dataset.b==='del'){if(!confirm('مسح كل المنتجات المطابقة نهائياً؟'))return;let t=0,c;do{c=await rpc('admin_bulk_delete',{filt:f});t+=c;toast('اتمسح '+t+'…')}while(c>0);return toast('اتمسح '+t+' منتج ✅')}
     const p={hide:{hidden:true},show:{hidden:false},reset:{reset_drops:true}}[b.dataset.b];const n=await rpc('admin_bulk',{filt:f,patch:p});toast('اتطبق على '+n+' منتج ✅')});
-  $('bwSave').onclick=()=>setCfg('blocked_words',$('bw').value.split('\n').map(x=>x.trim()).filter(x=>x.length>1));
+  $('bwSave').onclick=async()=>{const ws=$('bw').value.split('\n').map(x=>x.trim()).filter(x=>x.length>1);await setCfg('blocked_words',ws);let tot=0;for(const w of ws){let c;do{c=await rpc('admin_bulk_delete',{filt:{word:w}});tot+=c}while(c>0)}toast('اتحفظ واتمسح '+tot+' منتج ✅')};
   $('dispSave').onclick=async()=>{await setCfg('min_discount',+$('minD').value||0);await setCfg('default_sort',$('defS').value)};
   $('mSave').onclick=()=>setCfg('maintenance',{on:$('mOn').checked,text:$('mText').value.trim()||null});
   $('pGo').onclick=async()=>{const d=+$('pDays').value;if(!confirm('مسح تاريخ الأسعار الأقدم من '+d+' يوم؟'))return;const n=await rpc('admin_prune_history',{days:d});toast('اتمسح '+n+' سطر')};

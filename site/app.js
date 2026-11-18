@@ -30,8 +30,8 @@ function buildQuery(){
   if(st.sort==='low')p+='&drop_pct=gt.0';
   return p+'&order='+o+'&limit='+st.limit;
 }
-function storeName(k){return (STORES.find(x=>x[0]===k)||[,'المتجر'])[1]}
-function storeTag(k){const s=STORES.find(x=>x[0]===k);return s?`<div class="store-name"><img src="https://www.google.com/s2/favicons?domain=${s[2]}&sz=32" alt="">${s[1]}</div>`:''}
+function storeName(k){const o=(SITE.stores||{})[k];return (o&&o.name)||(allStores().find(x=>x[0]===k)||[,'المتجر'])[1]}
+function storeTag(k){const s=allStores().find(x=>x[0]===k);return s?`<div class="store-name"><img src="${storeLogo(k,s[2],32)}" alt="">${storeName(k)}</div>`:''}
 function card(p){
   const fresh=!st.first&&!st.seen.has(p.id+p.price);st.seen.add(p.id+p.price);
   const atLow=p.low_price&&Number(p.price)<=Number(p.low_price);
@@ -105,6 +105,7 @@ async function product(id){
   <div class="kv"><div><small>أقل سعر</small><b>${fmt(p.low_price)}</b></div><div><small>أعلى سعر</small><b>${fmt(p.high_price)}</b></div><div><small>قوة اللقطة</small><b>${p.score||0}</b></div></div>
   <h3 class="hist-h">📈 تاريخ السعر</h3>
   <canvas id="cv" class="${hist.length<2?'small':''}"></canvas>
+  ${/^amazon/.test(p.store)?`<a class="btn trackbtn" href="${BOT_URL}?start=t_${esc(p.pid||p.id.split(':')[1])}" target="_blank" rel="noopener">🔔 تابع سعر المنتج ده على البوت — ونبهك أول ما ينزل</a>`:''}
   <p class="since">آخر تغيير في السعر ${ago(p.last_change)} · بنتابعه ${ago(p.first_seen)}</p></div></div>
   <div class="buybar"><a class="btn buy" href="${esc(p.url)}" target="_blank" rel="noopener sponsored">🛒 اشتري من ${storeName(p.store)} <small>${fmt(p.price)} ج</small></a><button class="btn share" id="share">🔗 مشاركة</button></div>`;
   chart(document.getElementById('cv'),hist);
@@ -112,23 +113,27 @@ async function product(id){
   scrollTo(0,0);
 }
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),2500)}
+const AFF_TAG='3rodmattfwt4-21';
+function affLink(u){try{const x=new URL(u);if(/(^|\.)amazon\.eg$/.test(x.hostname)){x.searchParams.set('tag',SITE.aff_tag||AFF_TAG);return x.toString()}}catch(e){}return u}
 function applySite(){
   const s=SITE;const set=(id,v,html)=>{const e=document.getElementById(id);if(e&&v)html?e.innerHTML=v:e.textContent=v};
   set('landPill',s.hero_pill);set('landTitle',s.hero_title,1);set('landText',s.hero_text,1);
   if(s.bot_url)BOT_URL=s.bot_url;const bb=document.getElementById('botBtn');if(bb)bb.href=BOT_URL;
   if(s.channel_url)document.querySelectorAll('[data-chan]').forEach(a=>a.href=s.channel_url);
   const an=document.getElementById('annc');const A=s.announcement;
-  if(A&&A.on&&A.text){an.hidden=false;an.innerHTML=A.link?`<a href="${esc(A.link)}" target="_blank" rel="noopener">${esc(A.text)}</a>`:esc(A.text);if(A.color)an.style.background=A.color}else an.hidden=true;
+  if(A&&A.on&&A.text){an.hidden=false;an.innerHTML=A.link?`<a href="${esc(affLink(A.link))}" target="_blank" rel="noopener">${esc(A.text)}</a>`:esc(A.text);if(A.color)an.style.background=A.color}else an.hidden=true;
   if(s.colors){const r=document.documentElement.style;if(s.colors.brand)r.setProperty('--brand',s.colors.brand);if(s.colors.brand2)r.setProperty('--brand2',s.colors.brand2);if(s.colors.bg)r.setProperty('--bg',s.colors.bg)}
 }
-function visibleStores(){const o=SITE.stores||{};return STORES.filter(x=>!(o[x[0]]&&o[x[0]].hidden)).map(x=>{const c=o[x[0]];return c?[x[0],c.name||x[1],x[2],c.on===undefined?x[3]:(c.on?1:0)]:x})}
+function allStores(){const o=SITE.stores||{};const extra=Object.keys(o).filter(k=>!STORES.some(s=>s[0]===k)).map(k=>[k,o[k].name||k,o[k].domain||'',o[k].on?1:0]);return STORES.concat(extra)}
+function storeLogo(k,dom,sz){const c=(SITE.stores||{})[k];return c&&c.logo?c.logo:`https://www.google.com/s2/favicons?domain=${dom}&sz=${sz||128}`}
+function visibleStores(){const o=SITE.stores||{};return allStores().filter(x=>!(o[x[0]]&&o[x[0]].hidden)).map(x=>{const c=o[x[0]];return c?[x[0],c.name||x[1],x[2],c.on===undefined?x[3]:(c.on?1:0)]:x})}
 function visibleCats(){const h=SITE.hidden_cats||[];return CATS.filter(c=>!h.includes(c[0]))}
 function home(){document.body.classList.remove('pp-open');
   clearInterval(timer);const app=document.getElementById('app');app.innerHTML='';app.append(document.getElementById('homeTpl').content.cloneNode(true));
   document.getElementById('botBtn').href=BOT_URL;
   applySite();
   const feat=async()=>{try{const rows=await q('products?select=id,title,image,price,list_price,discount_pct,drop_pct&featured=eq.true&hidden=eq.false&order=last_change.desc&limit=20');const sec=document.getElementById('featSec');if(!sec)return;sec.hidden=!rows.length;if(SITE.featured_title)document.getElementById('featTitle').textContent=SITE.featured_title;document.getElementById('featStrip').innerHTML=rows.map(p=>`<a class="dcard" href="#/p/${encodeURIComponent(p.id)}">${p.discount_pct>0?`<span class="dpct" style="background:var(--bad)">-${p.discount_pct}%</span>`:''}<img loading="lazy" src="${esc(p.image)}" alt=""><div class="dt">${esc(p.title)}</div><div class="dp"><b>${fmt(p.price)} ج</b>${p.list_price&&+p.list_price>+p.price?`<s>${fmt(p.list_price)}</s>`:''}</div></a>`).join('')}catch(e){}};feat();
-  document.getElementById('storeGrid').innerHTML=visibleStores().map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'javascript:void 0'}" data-soon="${on?'':n}">${on?'<span class="tag">● مباشر</span>':''}<span class="lg"><img src="https://www.google.com/s2/favicons?domain=${dom}&sz=128" alt="${n}" onerror="this.replaceWith(document.createTextNode('${n[0]}'))"></span><b>${n}</b><small>${on?'خصومات لحد 90%':'قريباً'}</small></a>`).join('');
+  document.getElementById('storeGrid').innerHTML=visibleStores().map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'javascript:void 0'}" data-soon="${on?'':n}">${on?'<span class="tag">● مباشر</span>':''}<span class="lg"><img src="${storeLogo(k,dom)}" alt="${n}" onerror="this.replaceWith(document.createTextNode('${n[0]}'))"></span><b>${n}</b><small>${on?'خصومات لحد 90%':'قريباً'}</small></a>`).join('');
   document.getElementById('storeGrid').onclick=e=>{const s=e.target.closest('.store');if(s&&s.dataset.soon)toast('متجر '+s.dataset.soon+' هيتضاف قريباً 🔜')};
   const drops=async()=>{const el=document.getElementById('dropStrip');if(!el)return;try{const rows=await q('products?select=id,store,title,image,price,prev_price,drop_pct,last_change&drop_pct=gte.5&in_stock=eq.true&hidden=eq.false&prev_price=not.is.null&order=last_change.desc&limit=12');
     el.innerHTML=rows.map(p=>`<a class="dcard" href="#/p/${encodeURIComponent(p.id)}"><span class="dpct">↓ ${p.drop_pct}%</span><img loading="lazy" src="${esc(p.image)}" alt=""><div class="dt">${esc(p.title)}</div><div class="dp"><b>${fmt(p.price)} ج</b><s>${fmt(p.prev_price)}</s></div><small>${ago(p.last_change)}</small></a>`).join('')||'<div class="empty">لسه مفيش نزول جديد</div>'}catch(e){}};
@@ -140,7 +145,21 @@ function home(){document.body.classList.remove('pp-open');
 document.getElementById('topSearch').onsubmit=e=>{e.preventDefault();const v=document.getElementById('topQ').value.trim();st.q=v;st.store='';st.first=true;const h='#/deals'+(v?'?q='+encodeURIComponent(v):'');if(location.hash===h)route();else location.hash=h;document.getElementById('topQ').blur()};
 let tq;document.getElementById('topQ').oninput=()=>{if(!document.getElementById('grid'))return;clearTimeout(tq);tq=setTimeout(()=>{st.q=document.getElementById('topQ').value.trim();st.store='';st.first=true;loadFeed()},400)};
 document.addEventListener('click',e=>{if(e.target.closest('#searchBtn')){e.preventDefault();const i=document.getElementById('topQ');scrollTo({top:0,behavior:'smooth'});setTimeout(()=>i.focus(),250)}});
-function route(){const hsh=location.hash;const m=hsh.match(/^#\/p\/(.+)/);
+async function coupons(){
+  clearInterval(timer);document.body.classList.remove('pp-open');const app=document.getElementById('app');
+  app.innerHTML=`<section class="hero"><h1>🎟 <span>الكوبونات</span></h1><p>اضغط على أي كود وهيتنسخ على طول.</p></section><div class="chips" id="cpStores"></div><div id="cpList"><div class="empty">بنحمّل…</div></div>`;
+  let rows=[];try{rows=await q('coupons?select=*&order=source.desc,last_seen.desc&limit=400')}catch(e){}
+  const stores=[...new Set(rows.map(r=>r.store))];let cur='';
+  const draw=()=>{const list=rows.filter(r=>!cur||r.store===cur);
+    document.getElementById('cpStores').innerHTML=[['','الكل'],...stores.map(s=>[s,storeName(s)])].map(([k,n])=>`<button class="chip ${k===cur?'on':''}" data-s="${k}">${n}</button>`).join('');
+    const codes=list.filter(r=>r.code),clip=list.filter(r=>!r.code);
+    document.getElementById('cpList').innerHTML=(codes.length?`<div class="cp-codes">${codes.map(r=>`<div class="cp"><div class="cp-h">${storeTag(r.store)||esc(storeName(r.store))}${r.discount?`<span class="b pct">${esc(r.discount)}</span>`:''}</div>${r.title?`<p>${esc(r.title)}</p>`:''}<button class="cp-code" data-code="${esc(r.code)}">${esc(r.code)} <small>📋 نسخ</small></button>${r.url?`<a class="cp-go" href="${esc(affLink(r.url))}" target="_blank" rel="noopener">روح للمتجر ←</a>`:''}${r.expires_at?`<small class="mute">ينتهي ${new Date(r.expires_at).toLocaleDateString('ar-EG')}</small>`:''}</div>`).join('')}</div>`:'')+
+    (clip.length?`<h2 style="margin:22px 0 10px">✂️ منتجات عليها كوبون خصم</h2><p class="sub">الكوبون بيتفعّل من صفحة المنتج نفسها بدوسة.</p><section class="grid">${clip.map(r=>`<a class="card" href="${r.product_id?'#/p/'+encodeURIComponent(r.product_id):esc(affLink(r.url))}"><div class="img"><img loading="lazy" src="${esc(r.image)}" alt=""></div><div class="badges"><span class="b low">✂️ وفّر ${esc(r.discount)}</span></div><div class="body"><div class="title">${esc(r.title)}</div>${storeTag(r.store)}</div></a>`).join('')}</section>`:'')||'<div class="empty">مفيش كوبونات دلوقتي</div>'};
+  draw();document.getElementById('cpStores').onclick=e=>{const b=e.target.closest('.chip');if(b){cur=b.dataset.s;draw()}};
+  document.getElementById('cpList').onclick=e=>{const b=e.target.closest('.cp-code');if(!b)return;navigator.clipboard.writeText(b.dataset.code).then(()=>toast('اتنسخ الكود '+b.dataset.code+' ✅'))};
+  document.title='الكوبونات — عروض متتفوتش';scrollTo(0,0);
+}
+function route(){const hsh=location.hash;if(hsh.startsWith('#/coupons'))return coupons();const m=hsh.match(/^#\/p\/(.+)/);
   if(m)return product(decodeURIComponent(m[1]));
   if(hsh==='#stores'){if(!document.getElementById('storeGrid'))home();document.getElementById('stores').scrollIntoView({behavior:'smooth'});return}
   if(hsh.startsWith('#/deals')){const s=(hsh.match(/store=(\w+)/)||[])[1]||'';const ty=(hsh.match(/type=(\w+)/)||[])[1];st.type=ty||'';if(ty==='drop'){st.sort='new'}if(/[?&]q=/.test(hsh))st.q='';st.store=s;const qq=hsh.match(/[?&]q=([^&]+)/);st.q=qq?decodeURIComponent(qq[1]):st.q;document.getElementById('topQ').value=st.q;feed();const n=(STORES.find(x=>x[0]===s)||[])[1];document.getElementById('feedTitle').innerHTML=st.type==='drop'?'📉 <span>نزل سعره</span> دلوقتي':(n?`عروض <span>${n}</span>`:'اللي نزل <span>دلوقتي</span> — كل المتاجر');document.title='عروض متتفوتش';scrollTo(0,0);return}

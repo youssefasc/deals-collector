@@ -154,6 +154,21 @@ class DB:
     async def ingest(self, items: list):
         if not items:
             return
+        # الكوبونات اللي ظاهرة على المنتجات ("وفّر 10% بالكوبون") بتتسجل في جدول الكوبونات
+        coupons = []
+        for it in items:
+            c = it.pop("_coupon", None)
+            if c and not CFG.get("off_coupons"):
+                coupons.append({"id": f"{it['store']}:{it['pid']}", "store": it["store"], "title": it.get("title"),
+                                "discount": c, "url": it.get("url"), "image": it.get("image"),
+                                "product_id": f"{it['store']}:{it['pid']}"})
+        if coupons:
+            try:
+                await self.client.post(f"{SUPABASE_URL}/rest/v1/rpc/ingest_coupons",
+                                       json={"token": INGEST_TOKEN, "items": coupons})
+                stats["coupons"] = stats.get("coupons", 0) + len(coupons)
+            except Exception:
+                pass
         try:
             r = await self.client.post(f"{SUPABASE_URL}/rest/v1/rpc/ingest_products",
                                        json={"token": INGEST_TOKEN, "items": items})
@@ -320,6 +335,16 @@ def used_price(txt: str):
         return None
 
 
+_COUPON_RE = re.compile(
+    r"(?:وفّ?ر|وفر|Save)\s*([\d.,]+\s*(?:%|٪|جنيه|EGP)?|EGP\s*[\d.,]+)\s*(?:مع|بال|ب)?\s*(?:كوبون|الكوبون|with coupon|coupon)", re.I)
+
+
+def coupon_of(txt: str):
+    t = (txt or "").translate(_AR).replace("٫", ".")
+    m = _COUPON_RE.search(t)
+    return m.group(1).strip() if m else None
+
+
 def search_item(x: dict, cat: str, store: str = "amazon"):
     price, lst = x.get("price"), x.get("list")
     if not x.get("asin") or not price:
@@ -334,7 +359,8 @@ def search_item(x: dict, cat: str, store: str = "amazon"):
         store, f"https://www.amazon.eg/dp/{a}?tag={AMAZON_TAG}")
     return {"store": store, "pid": a, "title": (x.get("title") or "")[:300], "image": img, "url": url,
             "price": price, "list_price": lst, "discount_pct": pct,
-            "category": cat, "src_category": "search", "in_stock": not x.get("oos")}
+            "category": cat, "src_category": "search", "in_stock": not x.get("oos"),
+            "_coupon": coupon_of(x.get("txt"))}
 
 
 _ACC = re.compile(r"جراب|كفر|غطاء|حافظة|اسكرينة|واقي|لاصقة|شاحن|كابل|كيبل|حامل|ستاند|سماعة|باور ?بانك|"
