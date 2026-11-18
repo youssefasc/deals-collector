@@ -26,7 +26,8 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 INGEST_TOKEN = os.environ.get("INGEST_TOKEN", "")
 AMAZON_TAG = os.environ.get("AMAZON_TAG", "3rodmattfwt4-21")
 HOT_SECONDS = float(os.environ.get("HOT_SECONDS", "10"))
-SWEEP_DELAY = float(os.environ.get("SWEEP_DELAY", "1.2"))
+SWEEP_DELAY = float(os.environ.get("SWEEP_DELAY", "0.6"))
+SWEEP_WORKERS = int(os.environ.get("SWEEP_WORKERS", "3"))
 HOT_PAGES = int(os.environ.get("HOT_PAGES", "2"))
 
 # صفحات بنلقط منها رابط مصدر البيانات (كل صفحة عروض ليها مصدر بفلاتر مختلفة)
@@ -46,7 +47,7 @@ DEPARTMENTS = [
 # صفحات بحث أمازون بفلتر "كل الخصومات" — فيها آلاف عروض السوبرماركت والمنظفات اللي مش موجودة في صفحة العروض
 SEARCH_SOURCES = [s.split(":") for s in os.environ.get(
     "SEARCH_SOURCES", "grocery:grocery,hpc:health,baby:kids,beauty:beauty").split(",") if ":" in s]
-SEARCH_DELAY = float(os.environ.get("SEARCH_DELAY", "2.0"))
+SEARCH_DELAY = float(os.environ.get("SEARCH_DELAY", "1.0"))
 SEARCH_MAX_PAGES = int(os.environ.get("SEARCH_MAX_PAGES", "400"))
 
 PRICE_BANDS = [(1, 100), (100, 250), (250, 500), (500, 1000), (1000, 2500), (2500, 5000),
@@ -281,9 +282,13 @@ def search_item(x: dict, cat: str):
 
 
 async def search_loop(amz, db: "DB"):
-    """بنلف على صفحات البحث بفلتر الخصومات (سوبرماركت، منظفات…) صفحة صفحة."""
+    """كل مصدر بحث (سوبرماركت، منظفات…) بيتلف عليه بالتوازي مع الباقيين."""
+    await asyncio.gather(*(search_source_loop(amz, db, a, c) for a, c in SEARCH_SOURCES))
+
+
+async def search_source_loop(amz, db: "DB", alias: str, cat: str):
     while True:
-        for alias, cat in SEARCH_SOURCES:
+        if True:
             t0, total, page = time.time(), 0, 1
             while page <= SEARCH_MAX_PAGES:
                 if time.time() < amz.backoff_until:
@@ -315,7 +320,7 @@ async def search_loop(amz, db: "DB"):
                 page += 1
                 await asyncio.sleep(SEARCH_DELAY + random.uniform(0, 1.0))
             log(f"search done: {alias} → {total} products, {page} pages in {int(time.time() - t0)}s")
-        await asyncio.sleep(30)
+        await asyncio.sleep(20)
 
 
 async def hot_loop(amz: Amazon, db: DB):
@@ -334,8 +339,18 @@ async def hot_loop(amz: Amazon, db: DB):
 
 
 async def sweep_loop(amz: Amazon, db: DB):
-    while True:
-        for feed in list(amz.feeds):
+    """أكتر من عامل بيلفوا على مصادر العروض في نفس الوقت."""
+    async def worker(n):
+        while True:
+            feeds = [f for i, f in enumerate(sorted(amz.feeds)) if i % SWEEP_WORKERS == n]
+            await sweep_feeds(amz, db, feeds)
+            await asyncio.sleep(10)
+    await asyncio.gather(*(worker(i) for i in range(SWEEP_WORKERS)))
+
+
+async def sweep_feeds(amz: Amazon, db: DB, feeds):
+    if True:
+        for feed in feeds:
             start, empty, t0, total = HOT_PAGES * 30, 0, time.time(), 0
             while start < 10000:
                 if time.time() < amz.backoff_until:
@@ -356,7 +371,6 @@ async def sweep_loop(amz: Amazon, db: DB):
                 await asyncio.sleep(SWEEP_DELAY + random.uniform(0, 0.6))
             log(f"sweep done: {feed} → {total} products in {int(time.time() - t0)}s")
             await db.set_state("last_sweep:" + feed, {"products": total, "seconds": int(time.time() - t0)})
-        await asyncio.sleep(30)
 
 
 async def stats_loop(db: DB):
