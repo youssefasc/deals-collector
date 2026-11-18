@@ -96,3 +96,5 @@ body.pp-open .fab{display:none}body.pp-open main{padding-bottom:100px}body.pp-op
 .dpct{position:absolute;top:12px;inset-inline-start:12px;background:#16a34a;color:#fff;font-weight:800;font-size:12px;border-radius:8px;padding:2px 7px;z-index:1}
 .btn.dropbtn{background:#10261a;border:1.5px solid #16a34a;color:#7ff0a7}
 .cta .dropbtn{flex-basis:100%}
+
+.annc{background:linear-gradient(90deg,var(--brand),var(--brand2));color:#111;text-align:center;font-weight:800;font-size:13px;padding:8px 16px}.annc a{color:#111;text-decoration:underline}

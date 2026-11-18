@@ -66,6 +66,34 @@ PRICE_BANDS = [(1, 100), (100, 250), (250, 500), (500, 1000), (1000, 2500), (250
 stats = {"requests": 0, "items": 0, "inserted": 0, "changed": 0, "errors": 0, "since": time.time()}
 
 
+CFG = {}   # إعدادات بتتغير من لوحة التحكم (بتتقري كل دقيقة)
+
+
+def cfg(k, default):
+    v = CFG.get(k)
+    return default if v is None else v
+
+
+async def gate(name: str):
+    """بيوقف اللفة لو اتقفلت من لوحة التحكم (أو لو الجامع كله واقف)."""
+    while CFG.get("paused") or CFG.get("off_" + name):
+        await asyncio.sleep(10)
+
+
+async def config_loop(db):
+    global CFG
+    while True:
+        try:
+            r = await db.client.post(f"{SUPABASE_URL}/rest/v1/rpc/collector_get_config", json={"token": INGEST_TOKEN})
+            if r.status_code == 200 and isinstance(r.json(), dict):
+                if r.json() != CFG:
+                    log("config:", r.json())
+                CFG = r.json()
+        except Exception:
+            pass
+        await asyncio.sleep(30)
+
+
 def log(*a):
     print(time.strftime("%H:%M:%S"), *a, flush=True)
 
@@ -347,6 +375,7 @@ async def search_loop(amz, db: "DB"):
 
 async def search_source_loop(amz, db: "DB", alias: str, cat: str, node: bool = False):
     while True:
+        await gate("nodes" if node else "search")
         if True:
             t0, total, page = time.time(), 0, 1
             while page <= SEARCH_MAX_PAGES:
@@ -378,7 +407,8 @@ async def search_source_loop(amz, db: "DB", alias: str, cat: str, node: bool = F
                 if not res.get("hasNext"):
                     break
                 page += 1
-                await asyncio.sleep((NODE_DELAY if node else SEARCH_DELAY) + random.uniform(0, 1.0))
+                await asyncio.sleep((cfg("node_delay", NODE_DELAY) if node else cfg("search_delay", SEARCH_DELAY)) + random.uniform(0, 1.0))
+                await gate("nodes" if node else "search")
             log(f"search done: {alias} → {total} products, {page} pages in {int(time.time() - t0)}s")
         await asyncio.sleep(20)
 
@@ -414,9 +444,10 @@ def top_urls():
 async def top_loop(amz, db: "DB"):
     """بيلف على أول صفحات كل الأقسام باستمرار (كل كام دقيقة) عشان الأكثر مبيعاً يتفحص أكتر من الباقي."""
     while True:
+        await gate("top")
         t0, n = time.time(), 0
         for fn, cat, store in top_urls():
-            for p in range(1, TOP_PAGES + 1):
+            for p in range(1, int(cfg("top_pages", TOP_PAGES)) + 1):
                 while time.time() < amz.backoff_until:
                     await asyncio.sleep(5)
                 res = await fetch_search(amz, fn(p))
@@ -428,7 +459,7 @@ async def top_loop(amz, db: "DB"):
                 await db.ingest(items)
                 if not res.get("hasNext"):
                     break
-                await asyncio.sleep(TOP_DELAY + random.uniform(0, 0.5))
+                await asyncio.sleep(cfg("top_delay", TOP_DELAY) + random.uniform(0, 0.5))
         log(f"top pass: {n} bestsellers checked in {int(time.time() - t0)}s")
         await asyncio.sleep(5)
 
@@ -436,6 +467,7 @@ async def top_loop(amz, db: "DB"):
 async def amazon_now_loop(amz, db: "DB"):
     """أمازون ناو = منتجات البائع A31TYDXOWA7X1E (توصيل خلال دقايق)."""
     while True:
+        await gate("now")
         t0, total, page = time.time(), 0, 1
         while page <= 200:
             while time.time() < amz.backoff_until:
@@ -461,6 +493,7 @@ async def resale_loop(amz, db: "DB"):
     """أمازون مستعمل (ريسيل). أمازون بيقفل التقليب بعد ~13 صفحة، فبنقسم بشرائح سعر
     وأي شريحة توصل للحد بنقسمها نصين."""
     while True:
+        await gate("resale")
         t0, total = time.time(), 0
         bands = [[0, 50], [50, 100], [100, 200], [200, 400], [400, 800], [800, 1600], [1600, 3200],
                  [3200, 6400], [6400, 12800], [12800, 25600], [25600, 2000000]]
@@ -503,6 +536,7 @@ async def resale_loop(amz, db: "DB"):
 async def hot_loop(amz: Amazon, db: DB):
     while True:
         t0 = time.time()
+        await gate("hot")
         if time.time() >= amz.backoff_until:
             base = [f for f in amz.feeds if "#" not in f]
             deps = [f for f in amz.feeds if "#" in f]
@@ -528,6 +562,7 @@ async def sweep_loop(amz: Amazon, db: DB):
 async def sweep_feeds(amz: Amazon, db: DB, feeds):
     if True:
         for feed in feeds:
+            await gate("deals")
             start, empty, t0, total = HOT_PAGES * 30, 0, time.time(), 0
             while start < 10000:
                 if time.time() < amz.backoff_until:
@@ -545,7 +580,7 @@ async def sweep_feeds(amz: Amazon, db: DB, feeds):
                     total += len(items)
                     await db.ingest(items)
                 start += 30
-                await asyncio.sleep(SWEEP_DELAY + random.uniform(0, 0.6))
+                await asyncio.sleep(cfg("sweep_delay", SWEEP_DELAY) + random.uniform(0, 0.6))
             log(f"sweep done: {feed} → {total} products in {int(time.time() - t0)}s")
             await db.set_state("last_sweep:" + feed, {"products": total, "seconds": int(time.time() - t0)})
 
@@ -586,7 +621,7 @@ async def main():
             except Exception:
                 pass
         loops = [search_loop(amz, db), top_loop(amz, db), amazon_now_loop(amz, db), resale_loop(amz, db),
-                 stats_loop(db), refresh_loop(amz)]
+                 stats_loop(db), refresh_loop(amz), config_loop(db)]
         if amz.feeds:
             loops += [hot_loop(amz, db), sweep_loop(amz, db)]
         else:

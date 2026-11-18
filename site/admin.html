@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>لوحة التحكم — عروض متتفوتش</title>
+<link rel="icon" href="favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f1115;--card:#181b22;--card2:#1f232c;--line:#2a2f3a;--text:#eef1f6;--mute:#9aa3b2;--brand:#ff6a2b;--brand2:#ffb02e;--good:#2ecc71;--bad:#ff4d5e}
+*{box-sizing:border-box}html,body{margin:0;overflow-x:hidden}
+body{background:var(--bg);color:var(--text);font-family:Cairo,system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:#0f1115ee;backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:10px}
+header img{width:38px;height:38px;border-radius:50%}header b{font-size:16px}header .sp{flex:1}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px 16px;border-bottom:1px solid var(--line);scrollbar-width:none}nav::-webkit-scrollbar{display:none}
+nav button{flex:0 0 auto;background:var(--card);border:1px solid var(--line);color:var(--mute);border-radius:999px;padding:8px 14px;font:inherit;font-size:13px;cursor:pointer}
+nav button.on{background:var(--text);color:#111;font-weight:700}
+main{max-width:980px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+.card h3{margin:0 0 12px;font-size:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.stat{background:var(--card2);border-radius:12px;padding:12px}.stat small{color:var(--mute);display:block;font-size:12px}.stat b{font-size:22px}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+input,textarea,select{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font:inherit;font-size:14px}
+textarea{min-height:80px}
+.btn{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 16px;font:inherit;font-size:13px;cursor:pointer;font-weight:700}
+.btn.p{background:linear-gradient(90deg,var(--brand),var(--brand2));color:#111;border:0}.btn.r{background:#2c1418;color:#ff9aa6;border-color:#5a2a34}.btn.g{background:#11291b;color:#7ff0a7;border-color:#1f5a3a}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.sw:last-child{border:0}
+.tog{position:relative;width:46px;height:26px;flex:0 0 auto}.tog input{opacity:0;width:0;height:0}.tog span{position:absolute;inset:0;background:#3a404c;border-radius:99px;transition:.2s}.tog span:before{content:'';position:absolute;width:20px;height:20px;top:3px;right:3px;background:#fff;border-radius:50%;transition:.2s}
+.tog input:checked+span{background:var(--good)}.tog input:checked+span:before{transform:translateX(-20px)}
+.prod{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.prod img{width:64px;height:64px;object-fit:contain;background:#fff;border-radius:10px}
+.prod .t{font-size:13px;line-height:1.5}.prod .m{color:var(--mute);font-size:12px}
+.tag{font-size:11px;border-radius:6px;padding:1px 6px;background:var(--card2)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:12px;z-index:50}
+#login{max-width:360px;margin:15vh auto;text-align:center}
+.mute{color:var(--mute);font-size:12px}
+.bar{height:8px;background:var(--card2);border-radius:8px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2))}
+</style>
+</head>
+<body>
+<div id="login" class="card">
+  <img src="logo.jpg" style="width:80px;border-radius:50%"><h2>لوحة التحكم</h2>
+  <input id="pw" type="password" placeholder="كلمة السر"><br><br>
+  <button class="btn p" id="loginBtn" style="width:100%">دخول</button>
+  <p class="mute" id="lerr"></p>
+</div>
+<div id="app" hidden>
+<header><img src="logo.jpg"><b>لوحة التحكم</b><span class="sp"></span><a class="btn" href="/" target="_blank">فتح الموقع ↗</a><button class="btn" id="logout">خروج</button></header>
+<nav id="tabs"></nav>
+<main id="view"></main>
+</div>
+<script>
+const SB='https://unwzvhdwxmlmknvgvrhp.supabase.co/rest/v1/';
+const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3p2aGR3eG1sbWtudmd2cmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwMjQ5MzUsImV4cCI6MjExMDYwMDkzNX0.g_500nSaAP5lF6N69ofsvozust1BpzbBU7kZXtooAyM';
+const H={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
+const STORES=[['amazon','أمازون مصر'],['amazon_resale','أمازون مستعمل'],['amazon_now','أمازون ناو'],['noon','نون مصر'],['noon_minutes','نون مينتس'],['jumia','جوميا'],['talabat','طلبات مارت'],['breadfast','بريد فاست'],['carrefour','كارفور'],['btech','B.TECH'],['2b','2B'],['vodafone','فودافون'],['etisalat','اتصالات'],['orange','أورنج'],['we','وي WE']];
+const LIVE=['amazon','amazon_resale','amazon_now'];
+const CATS=[['mobiles','موبايلات'],['tablets','تابلت'],['laptops','لابتوب'],['tvs','شاشات'],['audio','سماعات'],['smartwatches','ساعات ذكية'],['appliances','أجهزة منزلية'],['electronics','إلكترونيات'],['gaming','ألعاب فيديو'],['grocery','سوبرماركت'],['beauty','جمال'],['health','صحة ونظافة'],['home','البيت والمطبخ'],['fashion','موضة'],['kids','أطفال'],['sports','رياضة'],['computer_acc','إكسسوارات كمبيوتر'],['mobile_acc','إكسسوارات موبايل'],['auto','عربيات'],['books_office','كتب ومكتب'],['other','أخرى']];
+const LOOPS=[['deals','صفحة عروض أمازون (Today\'s Deals)'],['hot','الفحص السريع لصفحة العروض (كل 10 ثواني)'],['search','بحث الخصومات (سوبرماركت، منظفات، أطفال، جمال)'],['nodes','كل منتجات الأقسام (موبايلات، لابتوب، شاشات، بقالة…)'],['top','الفحص المتكرر للأكثر مبيعاً'],['now','أمازون ناو'],['resale','أمازون مستعمل']];
+let TOKEN='';try{TOKEN=localStorage.getItem('adm')||''}catch(e){}
+let SITE={},timer;
+const $=id=>document.getElementById(id);
+const esc=s=>(s??'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
+function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),2200)}
+async function rpc(fn,body){const r=await fetch(SB+'rpc/'+fn,{method:'POST',headers:H,body:JSON.stringify(Object.assign({token:TOKEN},body||{}))});if(!r.ok)throw new Error(await r.text());const t=await r.text();return t?JSON.parse(t):null}
+async function get(path){const r=await fetch(SB+path,{headers:H});return r.json()}
+async function setCfg(k,v){await rpc('admin_set_config',{k,v});SITE[k]=v;toast('اتحفظ ✅')}
+async function loadSite(){SITE={};(await get('site_config?select=key,value')).forEach(r=>SITE[r.key]=r.value)}
+function tog(id,on){return `<label class="tog"><input type="checkbox" id="${id}" ${on?'checked':''}><span></span></label>`}
+
+async function login(){
+  TOKEN=$('pw').value.trim()||TOKEN;
+  let ok=false;try{ok=await rpc('admin_check')}catch(e){}
+  if(!ok){$('lerr').textContent='كلمة السر غلط';return}
+  try{localStorage.setItem('adm',TOKEN)}catch(e){}
+  $('login').hidden=true;$('app').hidden=false;await loadSite();show('dash');
+}
+$('loginBtn').onclick=login;$('pw').onkeydown=e=>{if(e.key==='Enter')login()};
+$('logout').onclick=()=>{try{localStorage.removeItem('adm')}catch(e){}location.reload()};
+
+const TABS=[['dash','📊 الإحصائيات'],['content','✍️ محتوى الموقع'],['stores','🏪 المتاجر'],['cats','🗂 الأقسام'],['products','📦 المنتجات'],['collector','⚙️ الجامع']];
+function show(t){clearInterval(timer);$('tabs').innerHTML=TABS.map(([k,n])=>`<button class="${k===t?'on':''}" data-t="${k}">${n}</button>`).join('');
+  $('tabs').onclick=e=>{const b=e.target.closest('button');if(b)show(b.dataset.t)};VIEWS[t]();scrollTo(0,0)}
+
+const VIEWS={
+async dash(){
+  const draw=async()=>{let s;try{s=await rpc('admin_stats')}catch(e){$('view').innerHTML='<div class="card">حصل خطأ</div>';return}
+    const c=s.collector||{};const age=s.collector_at?Math.round((Date.now()-new Date(s.collector_at))/1000):null;
+    const pct=Math.min(100,Math.round(s.db_bytes/5e8*100));
+    $('view').innerHTML=`
+    <div class="card"><h3>الجامع ${age!==null&&age<180?'<span class="tag" style="background:#11291b;color:#7ff0a7">● شغّال</span>':'<span class="tag" style="background:#2c1418;color:#ff9aa6">● متوقف/مش بيرد</span>'} ${s.config&&s.config.paused?'<span class="tag">⏸ متوقف من اللوحة</span>':''}</h3>
+      <div class="grid">
+      <div class="stat"><small>طلبات من آخر تشغيل</small><b>${fmt(c.requests)}</b></div>
+      <div class="stat"><small>منتجات اتقرت</small><b>${fmt(c.items)}</b></div>
+      <div class="stat"><small>تغييرات أسعار</small><b>${fmt(c.changed)}</b></div>
+      <div class="stat"><small>أخطاء</small><b>${fmt(c.errors)}</b></div>
+      <div class="stat"><small>آخر تحديث</small><b>${age===null?'—':age+' ث'}</b></div></div></div>
+    <div class="card"><h3>المنتجات</h3><div class="grid">
+      <div class="stat"><small>الإجمالي</small><b>${fmt(s.total)}</b></div>
+      <div class="stat"><small>جديد آخر ساعة</small><b>${fmt(s.new_1h)}</b></div>
+      <div class="stat"><small>جديد آخر 24 ساعة</small><b>${fmt(s.new_24h)}</b></div>
+      <div class="stat"><small>نزل سعره آخر ساعة</small><b>${fmt(s.drops_1h)}</b></div>
+      <div class="stat"><small>نزل سعره آخر 24 ساعة</small><b>${fmt(s.drops_24h)}</b></div>
+      <div class="stat"><small>اتفحص آخر 10 دقايق</small><b>${fmt(s.seen_10m)}</b></div>
+      <div class="stat"><small>مخفي</small><b>${fmt(s.hidden)}</b></div>
+      <div class="stat"><small>مميّز ⭐</small><b>${fmt(s.featured)}</b></div></div></div>
+    <div class="card"><h3>حسب المتجر</h3><div class="grid">${Object.entries(s.by_store||{}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="stat"><small>${esc((STORES.find(x=>x[0]===k)||[,k])[1])}</small><b>${fmt(v)}</b></div>`).join('')}</div></div>
+    <div class="card"><h3>حسب القسم</h3><div class="grid">${Object.entries(s.by_cat||{}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="stat"><small>${esc((CATS.find(x=>x[0]===k)||[,k])[1])}</small><b>${fmt(v)}</b></div>`).join('')}</div></div>
+    <div class="card"><h3>قاعدة البيانات</h3><div class="row" style="justify-content:space-between"><span>${s.db_size} من 500 MB (الخطة المجانية)</span><b>${pct}%</b></div><div class="bar"><i style="width:${pct}%"></i></div><p class="mute">سجل الأسعار: ${fmt(s.history_rows)} سطر</p></div>
+    <p class="mute">بيتحدث كل 15 ثانية</p>`};
+  await draw();timer=setInterval(draw,15000);
+},
+content(){
+  const s=SITE,A=s.announcement||{},C=s.colors||{};
+  $('view').innerHTML=`
+  <div class="card"><h3>📣 شريط الإعلان (أعلى كل الصفحات)</h3>
+    <div class="sw"><span>ظاهر</span>${tog('aOn',A.on)}</div>
+    <label>النص</label><input id="aText" value="${esc(A.text)}" placeholder="مثلاً: 🔥 عروض الجمعة البيضاء بدأت!">
+    <label>لينك (اختياري)</label><input id="aLink" value="${esc(A.link)}" placeholder="https://...">
+    <label>لون الخلفية (اختياري)</label><input id="aColor" type="color" value="${esc(A.color||'#ff6a2b')}">
+    <br><br><button class="btn p" id="saveA">حفظ الإعلان</button></div>
+  <div class="card"><h3>🏠 البانر الرئيسي</h3>
+    <label>السطر الصغير فوق</label><input id="hPill" value="${esc(s.hero_pill)}" placeholder="⚡ بنتابع الأسعار 24 ساعة">
+    <label>العنوان (ينفع HTML، مثلاً &lt;span&gt; للون البرتقالي)</label><input id="hTitle" value="${esc(s.hero_title)}" placeholder="أقوى العروض في مصر… <span>من غير ما تدوّر</span> 🔥">
+    <label>الوصف (ينفع HTML زي &lt;b&gt;)</label><textarea id="hText" placeholder="سيبه فاضي عشان النص الافتراضي">${esc(s.hero_text)}</textarea>
+    <label>عنوان قسم المنتجات المميّزة</label><input id="fTitle" value="${esc(s.featured_title)}" placeholder="⭐ اخترنالك">
+    <br><br><button class="btn p" id="saveH">حفظ البانر</button> <span class="mute">سيب أي خانة فاضية عشان ترجع للنص الأصلي</span></div>
+  <div class="card"><h3>🔗 اللينكات</h3>
+    <label>لينك البوت</label><input id="lBot" value="${esc(s.bot_url)}" placeholder="https://t.me/AmazonEGOffersBot">
+    <label>لينك قناة التليجرام</label><input id="lChan" value="${esc(s.channel_url)}" placeholder="https://t.me/offer_egypt">
+    <br><br><button class="btn p" id="saveL">حفظ اللينكات</button></div>
+  <div class="card"><h3>🎨 الألوان</h3>
+    <div class="row"><div><label>اللون الأساسي</label><input type="color" id="c1" value="${C.brand||'#ff6a2b'}"></div><div><label>اللون التاني</label><input type="color" id="c2" value="${C.brand2||'#ffb02e'}"></div><div><label>الخلفية</label><input type="color" id="c3" value="${C.bg||'#0f1115'}"></div></div>
+    <br><button class="btn p" id="saveC">حفظ الألوان</button> <button class="btn" id="resetC">رجّع الألوان الأصلية</button></div>`;
+  const v=id=>$(id).value.trim()||null;
+  $('saveA').onclick=()=>setCfg('announcement',{on:$('aOn').checked,text:v('aText'),link:v('aLink'),color:$('aColor').value});
+  $('saveH').onclick=async()=>{await setCfg('hero_pill',v('hPill'));await setCfg('hero_title',v('hTitle'));await setCfg('hero_text',v('hText'));await setCfg('featured_title',v('fTitle'))};
+  $('saveL').onclick=async()=>{await setCfg('bot_url',v('lBot'));await setCfg('channel_url',v('lChan'))};
+  $('saveC').onclick=()=>setCfg('colors',{brand:$('c1').value,brand2:$('c2').value,bg:$('c3').value});
+  $('resetC').onclick=async()=>{await setCfg('colors',null);VIEWS.content()};
+},
+stores(){
+  const o=SITE.stores||{};
+  $('view').innerHTML=`<div class="card"><h3>🏪 المتاجر</h3><p class="mute">"مباشر" = بيتعرض كمتجر شغّال. "مخفي" = مش هيظهر في الموقع خالص. تقدر تغيّر الاسم.</p>
+  ${STORES.map(([k,n])=>{const c=o[k]||{};const on=c.on===undefined?LIVE.includes(k):c.on;return `<div class="sw" style="flex-wrap:wrap"><input data-n="${k}" value="${esc(c.name||n)}" style="flex:1;min-width:140px">
+    <span class="row"><span class="mute">مباشر</span>${tog('on_'+k,on)}<span class="mute">مخفي</span>${tog('hd_'+k,c.hidden)}</span></div>`}).join('')}
+  <br><button class="btn p" id="saveS">حفظ المتاجر</button></div>`;
+  $('saveS').onclick=()=>{const out={};STORES.forEach(([k,n])=>{const nm=document.querySelector(`[data-n="${k}"]`).value.trim();out[k]={on:$('on_'+k).checked,hidden:$('hd_'+k).checked};if(nm&&nm!==n)out[k].name=nm});setCfg('stores',out)};
+},
+cats(){
+  const h=SITE.hidden_cats||[];
+  $('view').innerHTML=`<div class="card"><h3>🗂 الأقسام الظاهرة في فلتر الموقع</h3>${CATS.map(([k,n])=>`<div class="sw"><span>${n}</span>${tog('cat_'+k,!h.includes(k))}</div>`).join('')}
+  <br><button class="btn p" id="saveK">حفظ</button></div>`;
+  $('saveK').onclick=()=>setCfg('hidden_cats',CATS.filter(([k])=>!$('cat_'+k).checked).map(x=>x[0]));
+},
+products(){
+  $('view').innerHTML=`<div class="card"><h3>📦 إدارة المنتجات</h3>
+    <div class="row"><input id="pq" placeholder="اسم المنتج، أو ASIN، أو لينك" style="flex:1"><select id="pf" style="width:auto"><option value="">الكل</option><option value="hidden">المخفي</option><option value="featured">المميّز ⭐</option></select><button class="btn p" id="pgo">بحث</button></div>
+    <div id="plist" class="mute" style="margin-top:10px">ابحث عن منتج عشان تخفيه أو تميّزه أو تعدّله</div></div>
+  <div class="card"><h3>🚫 إخفاء بكلمة</h3><p class="mute">يخفي كل المنتجات اللي اسمها فيه الكلمة دي (مثلاً: جراب، كفر، بطاقة هدايا).</p>
+    <div class="row"><input id="bw" style="flex:1" placeholder="الكلمة"><button class="btn r" id="bh">إخفاء الكل</button><button class="btn g" id="bs">إظهار الكل</button></div></div>`;
+  const run=async()=>{let q=$('pq').value.trim();const f=$('pf').value;const m=q.match(/(B0[A-Z0-9]{8})/i);
+    let p='products?select=id,store,title,image,price,list_price,discount_pct,drop_pct,category,hidden,featured,last_seen&order=last_seen.desc&limit=40';
+    if(m)p+='&pid=eq.'+m[1].toUpperCase();else if(q)p+='&title=ilike.*'+encodeURIComponent(q.replace(/[*,()]/g,' '))+'*';
+    if(f)p+='&'+f+'=eq.true';
+    const rows=await get(p);
+    $('plist').innerHTML=rows.length?rows.map(r=>`<div class="prod" data-id="${esc(r.id)}"><img src="${esc(r.image)}"><div style="flex:1;min-width:0">
+      <div class="t">${esc(r.title)}</div><div class="m">${esc((STORES.find(x=>x[0]===r.store)||[,r.store])[1])} · <b style="color:var(--text)">${fmt(r.price)} ج</b> ${r.discount_pct?'· -'+r.discount_pct+'%':''} ${r.drop_pct?'· ↓'+r.drop_pct+'%':''} ${r.hidden?'<span class="tag">مخفي</span>':''} ${r.featured?'<span class="tag">⭐</span>':''}</div>
+      <div class="row" style="margin-top:6px"><button class="btn ${r.hidden?'g':'r'}" data-a="hide">${r.hidden?'إظهار':'إخفاء'}</button><button class="btn" data-a="feat">${r.featured?'شيل ⭐':'⭐ تمييز'}</button>
+      <select data-a="cat" style="width:auto;padding:6px">${CATS.map(([k,n])=>`<option value="${k}" ${k===r.category?'selected':''}>${n}</option>`).join('')}</select>
+      <button class="btn" data-a="title">✏️ الاسم</button><button class="btn r" data-a="del">🗑</button><a class="btn" href="/#/p/${encodeURIComponent(r.id)}" target="_blank">↗</a></div></div></div>`).join(''):'مفيش نتايج';
+  };
+  $('pgo').onclick=run;$('pq').onkeydown=e=>{if(e.key==='Enter')run()};$('pf').onchange=run;
+  $('plist').onclick=async e=>{const b=e.target.closest('[data-a]');if(!b||b.tagName==='SELECT')return;const id=b.closest('.prod').dataset.id;const a=b.dataset.a;
+    const row=b.closest('.prod');
+    if(a==='hide')await rpc('admin_product',{pid:id,patch:{hidden:b.textContent==='إخفاء'}});
+    if(a==='feat')await rpc('admin_product',{pid:id,patch:{featured:b.textContent.includes('تمييز')}});
+    if(a==='title'){const t=prompt('الاسم الجديد',row.querySelector('.t').textContent);if(!t)return;await rpc('admin_product',{pid:id,patch:{title:t}})}
+    if(a==='del'){if(!confirm('حذف المنتج نهائياً؟ (ممكن الجامع يرجّعه تاني لو لقاه — الأفضل "إخفاء")'))return;await rpc('admin_product',{pid:id,patch:{delete:true}})}
+    toast('تم ✅');run()};
+  $('plist').onchange=async e=>{const s=e.target.closest('select[data-a="cat"]');if(!s)return;await rpc('admin_product',{pid:s.closest('.prod').dataset.id,patch:{category:s.value}});toast('القسم اتغيّر ✅')};
+  const bulk=async hide=>{const w=$('bw').value.trim();if(w.length<2)return toast('اكتب كلمة');const n=await rpc('admin_bulk_hide',{pattern:w,hide});toast((hide?'اتخفى ':'ظهر ')+n+' منتج')};
+  $('bh').onclick=()=>bulk(true);$('bs').onclick=()=>bulk(false);
+},
+async collector(){
+  const s=await rpc('admin_stats');const c=s.config||{};
+  $('view').innerHTML=`<div class="card"><h3>⚙️ التحكم في الجامع</h3>
+    <div class="sw"><b>⏸ إيقاف الجامع بالكامل</b>${tog('paused',c.paused)}</div>
+    <p class="mute">التغييرات بتوصل للجامع خلال 30 ثانية.</p></div>
+  <div class="card"><h3>المصادر</h3>${LOOPS.map(([k,n])=>`<div class="sw"><span>${n}</span>${tog('loop_'+k,!c['off_'+k])}</div>`).join('')}</div>
+  <div class="card"><h3>السرعة</h3><p class="mute">الأرقام دي ثواني انتظار بين كل طلب والتاني. أقل = أسرع بس احتمال الحظر من أمازون أعلى.</p>
+    <div class="grid">
+      <div><label>صفحة العروض</label><input id="sweep_delay" type="number" step="0.1" min="0.2" value="${c.sweep_delay??0.6}"></div>
+      <div><label>بحث الخصومات</label><input id="search_delay" type="number" step="0.1" min="0.3" value="${c.search_delay??1}"></div>
+      <div><label>كل منتجات الأقسام</label><input id="node_delay" type="number" step="0.1" min="0.3" value="${c.node_delay??2}"></div>
+      <div><label>الأكثر مبيعاً</label><input id="top_delay" type="number" step="0.1" min="0.3" value="${c.top_delay??1.5}"></div>
+      <div><label>عدد صفحات الأكثر مبيعاً</label><input id="top_pages" type="number" min="1" max="20" value="${c.top_pages??4}"></div>
+    </div></div>
+  <button class="btn p" id="saveX" style="width:100%;padding:14px">حفظ إعدادات الجامع</button>`;
+  $('saveX').onclick=async()=>{const out={paused:$('paused').checked};LOOPS.forEach(([k])=>{if(!$('loop_'+k).checked)out['off_'+k]=true});
+    ['sweep_delay','search_delay','node_delay','top_delay','top_pages'].forEach(k=>{const v=parseFloat($(k).value);if(!isNaN(v))out[k]=v});
+    await rpc('admin_set_collector',{cfg:out});toast('اتحفظ — هيتطبق خلال 30 ثانية ✅')};
+}};
+if(TOKEN)login();
+</script>
+</body>
+</html>
