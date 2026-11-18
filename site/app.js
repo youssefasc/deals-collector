@@ -12,7 +12,7 @@ const ago=t=>{const s=(Date.now()-new Date(t))/1000;if(s<60)return'من ثوان
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 async function q(path){const r=await fetch(SB+path,{headers:H});if(!r.ok)throw new Error(r.status);return r.json()}
 function buildQuery(){
-  let p='products?select=id,title,image,price,list_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change,in_stock&in_stock=eq.true&price=gt.0';
+  let p='products?select=id,store,title,image,price,list_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change,in_stock&in_stock=eq.true&price=gt.0';
   if(st.store)p+='&store=eq.'+st.store;
   if(st.cat)p+='&category=eq.'+st.cat;
   if(st.pct)p+='&discount_pct=gte.'+st.pct;
@@ -21,6 +21,7 @@ function buildQuery(){
   if(st.sort==='low')p+='&drop_pct=gt.0';
   return p+'&order='+o+'&limit='+st.limit;
 }
+function storeTag(k){const s=STORES.find(x=>x[0]===k);return s?`<div class="store-name"><img src="https://www.google.com/s2/favicons?domain=${s[2]}&sz=32" alt="">${s[1]}</div>`:''}
 function card(p){
   const fresh=!st.first&&!st.seen.has(p.id+p.price);st.seen.add(p.id+p.price);
   const atLow=p.low_price&&Number(p.price)<=Number(p.low_price);
@@ -34,7 +35,7 @@ function card(p){
   <div class="body"><div class="title">${esc(p.title)}</div>
   <div class="price"><b>${fmt(p.price)} ج</b>${p.list_price&&+p.list_price>+p.price?`<s>${fmt(p.list_price)}</s>`:''}</div>
   <div class="power" title="قوة اللقطة"><div class="bar" style="width:${Math.max(4,sc)}%"></div></div>
-  <div class="meta"><span>قوة اللقطة ${sc}</span><span>${ago(p.last_change)}</span></div></div></a>`;
+  <div class="meta"><span>قوة اللقطة ${sc}</span><span>${ago(p.last_change)}</span></div>${storeTag(p.store)}</div></a>`;
 }
 let timer;
 async function loadFeed(){
@@ -109,12 +110,12 @@ function home(){
     document.getElementById('landStats').innerHTML=`<div><b>${Number(t).toLocaleString('en-US')}</b><span>منتج متراقب</span></div><div><b>${STORES.length}</b><span>متجر مصري</span></div><div><b>24/7</b><span>مراقبة</span></div>`}).catch(()=>{});};land();timer=setInterval(()=>{if(!document.hidden)land()},10000);
   document.title='عروض متتفوتش — أفضل عروض المتاجر المصرية في مكان واحد';scrollTo(0,0);
 }
-document.getElementById('topSearch').onsubmit=e=>{e.preventDefault();const v=document.getElementById('topQ').value.trim();st.q=v;st.first=true;const h='#/deals'+(v?'?q='+encodeURIComponent(v):'');if(location.hash===h)route();else location.hash=h;document.getElementById('topQ').blur()};
-let tq;document.getElementById('topQ').oninput=()=>{if(!document.getElementById('grid'))return;clearTimeout(tq);tq=setTimeout(()=>{st.q=document.getElementById('topQ').value.trim();st.first=true;loadFeed()},400)};
+document.getElementById('topSearch').onsubmit=e=>{e.preventDefault();const v=document.getElementById('topQ').value.trim();st.q=v;st.store='';st.first=true;const h='#/deals'+(v?'?q='+encodeURIComponent(v):'');if(location.hash===h)route();else location.hash=h;document.getElementById('topQ').blur()};
+let tq;document.getElementById('topQ').oninput=()=>{if(!document.getElementById('grid'))return;clearTimeout(tq);tq=setTimeout(()=>{st.q=document.getElementById('topQ').value.trim();st.store='';st.first=true;loadFeed()},400)};
 document.addEventListener('click',e=>{if(e.target.closest('#searchBtn')){e.preventDefault();const i=document.getElementById('topQ');scrollTo({top:0,behavior:'smooth'});setTimeout(()=>i.focus(),250)}});
 function route(){const hsh=location.hash;const m=hsh.match(/^#\/p\/(.+)/);
   if(m)return product(decodeURIComponent(m[1]));
   if(hsh==='#stores'){if(!document.getElementById('storeGrid'))home();document.getElementById('stores').scrollIntoView({behavior:'smooth'});return}
-  if(hsh.startsWith('#/deals')){const s=(hsh.match(/store=(\w+)/)||[])[1]||'';st.store=s;const qq=hsh.match(/[?&]q=([^&]+)/);st.q=qq?decodeURIComponent(qq[1]):st.q;document.getElementById('topQ').value=st.q;feed();const n=(STORES.find(x=>x[0]===s)||[])[1];document.getElementById('feedTitle').innerHTML=n?`عروض <span>${n}</span>`:'اللي نزل <span>دلوقتي</span> — كل المتاجر';document.title='عروض متتفوتش';scrollTo(0,0);return}
+  if(hsh.startsWith('#/deals')){const s=(hsh.match(/store=(\w+)/)||[])[1]||'';if(/[?&]q=/.test(hsh))st.q='';st.store=s;const qq=hsh.match(/[?&]q=([^&]+)/);st.q=qq?decodeURIComponent(qq[1]):st.q;document.getElementById('topQ').value=st.q;feed();const n=(STORES.find(x=>x[0]===s)||[])[1];document.getElementById('feedTitle').innerHTML=n?`عروض <span>${n}</span>`:'اللي نزل <span>دلوقتي</span> — كل المتاجر';document.title='عروض متتفوتش';scrollTo(0,0);return}
   home()}
 addEventListener('hashchange',route);route();
