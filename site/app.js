@@ -42,8 +42,8 @@ async function loadFeed(){
   const g=document.getElementById('grid');if(!g)return;
   try{const rows=await q(buildQuery());
     g.innerHTML=rows.length?rows.map(card).join(''):'<div class="empty">مفيش عروض بالفلتر دا دلوقتي</div>';
-    st.first=false;document.getElementById('liveText').textContent='مباشر · '+new Date().toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  }catch(e){document.getElementById('liveText').textContent='بيعيد الاتصال…'}
+    st.first=false;
+  }catch(e){document.getElementById('liveText').dataset.off='1'}
 }
 async function loadStats(){
   try{const r=await fetch(SB+'products?select=id&limit=1',{headers:{...H,Prefer:'count=exact'}});
@@ -119,3 +119,6 @@ function route(){const hsh=location.hash;const m=hsh.match(/^#\/p\/(.+)/);
   if(hsh.startsWith('#/deals')){const s=(hsh.match(/store=(\w+)/)||[])[1]||'';if(/[?&]q=/.test(hsh))st.q='';st.store=s;const qq=hsh.match(/[?&]q=([^&]+)/);st.q=qq?decodeURIComponent(qq[1]):st.q;document.getElementById('topQ').value=st.q;feed();const n=(STORES.find(x=>x[0]===s)||[])[1];document.getElementById('feedTitle').innerHTML=n?`عروض <span>${n}</span>`:'اللي نزل <span>دلوقتي</span> — كل المتاجر';document.title='عروض متتفوتش';scrollTo(0,0);return}
   home()}
 addEventListener('hashchange',route);route();
+
+function clock(){const d=new Date();let h=d.getHours();const ap=h<12?'ص':'م';h=h%12||12;const p=n=>String(n).padStart(2,'0');const el=document.getElementById('liveText');el.textContent='مباشر · '+h+':'+p(d.getMinutes())+':'+p(d.getSeconds())+' '+ap}
+clock();setInterval(clock,1000);
