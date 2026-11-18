@@ -169,7 +169,7 @@ function route(){const hsh=location.hash;if(hsh.startsWith('#/coupons'))return c
   if(hsh.startsWith('#/deals')){const s=(hsh.match(/store=(\w+)/)||[])[1]||'';const ty=(hsh.match(/type=(\w+)/)||[])[1];st.type=ty||'';if(ty==='drop'){st.sort='new'}if(/[?&]q=/.test(hsh))st.q='';st.store=s;const qq=hsh.match(/[?&]q=([^&]+)/);st.q=qq?decodeURIComponent(qq[1]):st.q;document.getElementById('topQ').value=st.q;feed();const n=(STORES.find(x=>x[0]===s)||[])[1];document.getElementById('feedTitle').innerHTML=st.type==='drop'?'📉 <span>نزل سعره</span> دلوقتي':(n?`عروض <span>${n}</span>`:'اللي نزل <span>دلوقتي</span> — كل المتاجر');document.title='عروض متتفوتش';scrollTo(0,0);return}
   home()}
 addEventListener('hashchange',route);
-(async()=>{try{const rows=await q('site_config?select=key,value');rows.forEach(r=>SITE[r.key]=r.value)}catch(e){}
+(async()=>{try{const rows=await Promise.race([q('site_config?select=key,value'),new Promise((_,rj)=>setTimeout(rj,2500))]);rows.forEach(r=>SITE[r.key]=r.value)}catch(e){}
   if(SITE.maintenance&&SITE.maintenance.on){document.getElementById('app').innerHTML=`<div class="empty" style="padding:80px 16px;font-size:18px">🛠 ${esc(SITE.maintenance.text||'الموقع تحت الصيانة — راجعين قريب جداً')}</div>`;document.querySelector('.topsearch')?.remove();return}
   if(SITE.default_sort)st.sort=SITE.default_sort;applySite();route()})();
 

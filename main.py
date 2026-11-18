@@ -155,9 +155,18 @@ class DB:
             "apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}",
             "Content-Type": "application/json"})
 
+    _sem = None
+
     async def ingest(self, items: list):
         if not items:
             return
+        # مش أكتر من كتابتين في نفس الوقت — عشان قاعدة البيانات متتخنقش والموقع يفضل سريع
+        if DB._sem is None:
+            DB._sem = asyncio.Semaphore(int(os.environ.get("DB_CONCURRENCY", "2")))
+        async with DB._sem:
+            await self._ingest(items)
+
+    async def _ingest(self, items: list):
         # الكوبونات اللي ظاهرة على المنتجات ("وفّر 10% بالكوبون") بتتسجل في جدول الكوبونات
         coupons = []
         for it in items:
