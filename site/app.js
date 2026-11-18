@@ -13,6 +13,7 @@ const st={type:'',since:0,store:'',sort:'new',cat:'',pct:0,q:'',limit:48,seen:ne
 const fmt=n=>n==null?'':Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
 const ago=t=>{const s=(Date.now()-new Date(t))/1000;if(s<60)return'من ثواني';if(s<3600)return'من '+Math.floor(s/60)+' د';if(s<86400)return'من '+Math.floor(s/3600)+' س';return'من '+Math.floor(s/86400)+' يوم'};
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function counts(){const r=await fetch(SB+'rpc/site_counts',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:'{}'});return r.ok?r.json():{}}
 async function q(path){const r=await fetch(SB+path,{headers:H});if(!r.ok)throw new Error(r.status);return r.json()}
 function buildQuery(){
   let p='products?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change,in_stock&in_stock=eq.true&price=gt.0&hidden=eq.false';
@@ -56,11 +57,7 @@ async function loadFeed(){
   }catch(e){document.getElementById('liveText').dataset.off='1'}
 }
 async function loadStats(){
-  try{const r=await fetch(SB+'products?select=id&limit=1',{headers:{...H,Prefer:'count=exact'}});
-    const total=(r.headers.get('content-range')||'').split('/')[1]||'—';
-    const since=new Date(Date.now()-3600e3).toISOString();
-    const r2=await fetch(SB+'products?select=id&limit=1&drop_pct=gt.0&last_change=gte.'+since,{headers:{...H,Prefer:'count=exact'}});
-    const drops=(r2.headers.get('content-range')||'').split('/')[1]||'0';
+  try{const c=await counts();if(!c||!c.total)return;const total=c.total,drops=c.drops_1h||0;
     document.getElementById('stats').innerHTML=`<div class="stat"><b>${Number(total).toLocaleString('en-US')}</b>منتج</div><div class="stat"><b>${drops}</b>سعر نزل آخر ساعة</div><div class="stat"><b>⚡</b>تحديث لحظي</div>`;
   }catch(e){}
 }
@@ -138,7 +135,7 @@ function home(){document.body.classList.remove('pp-open');
   const drops=async()=>{const el=document.getElementById('dropStrip');if(!el)return;try{const rows=await q('products?select=id,store,title,image,price,prev_price,drop_pct,last_change&drop_pct=gte.5&in_stock=eq.true&hidden=eq.false&prev_price=not.is.null&order=last_change.desc&limit=12');
     el.innerHTML=rows.map(p=>`<a class="dcard" href="#/p/${encodeURIComponent(p.id)}"><span class="dpct">↓ ${p.drop_pct}%</span><img loading="lazy" src="${esc(p.image)}" alt=""><div class="dt">${esc(p.title)}</div><div class="dp"><b>${fmt(p.price)} ج</b><s>${fmt(p.prev_price)}</s></div><small>${ago(p.last_change)}</small></a>`).join('')||'<div class="empty">لسه مفيش نزول جديد</div>'}catch(e){}};
   drops();
-  const land=()=>{drops();if(!document.getElementById('landStats'))return;fetch(SB+'products?select=id&limit=1',{headers:{...H,Prefer:'count=exact'}}).then(r=>{const t=(r.headers.get('content-range')||'').split('/')[1]||'—';
+  const land=()=>{drops();if(!document.getElementById('landStats'))return;counts().then(c=>{if(!c||!c.total)return;const t=c.total;
     document.getElementById('landStats').innerHTML=`<div><b>${Number(t).toLocaleString('en-US')}</b><span>منتج</span></div><div><b>${STORES.length}</b><span>متجر مصري</span></div><div><b>24/7</b><span>مراقبة</span></div>`}).catch(()=>{});};land();timer=setInterval(()=>{if(!document.hidden)land()},10000);
   document.title='عروض متتفوتش — أفضل عروض المتاجر المصرية في مكان واحد';scrollTo(0,0);
 }
