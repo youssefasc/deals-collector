@@ -4,7 +4,7 @@ const H={apikey:KEY,Authorization:'Bearer '+KEY};
 const CATS=[['','الكل'],['mobiles','موبايلات'],['tablets','تابلت'],['laptops','لابتوب'],['tvs','شاشات'],['audio','سماعات'],['smartwatches','ساعات ذكية'],['appliances','أجهزة منزلية'],['electronics','إلكترونيات'],['gaming','ألعاب فيديو'],['grocery','سوبرماركت'],['beauty','جمال'],['health','صحة ونظافة'],['home','البيت والمطبخ'],['fashion','موضة'],['kids','أطفال'],['sports','رياضة'],['computer_acc','إكسسوارات كمبيوتر'],['mobile_acc','إكسسوارات موبايل'],['auto','عربيات'],['books_office','كتب ومكتب'],['other','أخرى']];
 const SORTS=[['new','🆕 أحدث نزول'],['score','🔥 أقوى لقطة'],['pct','٪ أعلى خصم'],['low','📉 أقل سعر في تاريخه'],['cheap','💸 الأرخص']];
 const PCTS=[[0,'أي خصم'],[20,'+20%'],[40,'+40%'],[60,'+60%'],[80,'+80%']];
-const BOT_URL='https://t.me/offer_egypt';
+const BOT_URL='https://t.me/AmazonEGOffersBot';
 const STORES=[['amazon','أمازون مصر','A','#ff9900',1],['amazon_now','أمازون ناو','A','#00a8e1',0],['noon','نون مصر','n','#e6c200',0],['noon_minutes','نون مينتس','n','#d4b000',0],['jumia','جوميا','J','#f68b1e',0],['talabat','طلبات مارت','t','#ff5a00',0],['breadfast','بريد فاست','B','#7b2cbf',0],['carrefour','كارفور','C','#1e5bc6',0],['btech','B.TECH','B','#e30613',0],['2b','2B','2B','#0a4ea2',0]];
 const st={store:'',sort:'new',cat:'',pct:0,q:'',limit:48,seen:new Set(),first:true};
 const fmt=n=>n==null?'':Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
