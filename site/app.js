@@ -9,7 +9,7 @@ const PCTS=[[0,'أي خصم'],[20,'+20%'],[40,'+40%'],[60,'+60%'],[80,'+80%']];
 let BOT_URL='https://t.me/AmazonEGOffersBot';
 let SITE={};
 const STORES=[['amazon','أمازون مصر','amazon.eg',1],['amazon_resale','أمازون مستعمل','amazon.eg',1],['amazon_now','أمازون ناو','amazon.eg',1],['noon','نون مصر','noon.com',0],['noon_minutes','نون مينتس','noon.com',0],['jumia','جوميا','jumia.com.eg',0],['talabat','طلبات مارت','talabat.com',0],['breadfast','بريد فاست','breadfast.com',0],['carrefour','كارفور','carrefouregypt.com',0],['btech','B.TECH','btech.com',0],['2b','2B','2b.com.eg',0],['vodafone','فودافون','vodafone.com.eg',0],['etisalat','اتصالات','eand.com.eg',0],['orange','أورنج','orange.eg',0],['we','وي WE','te.eg',0]];
-const st={type:'',since:0,store:'',sort:'new',cat:'',pct:0,q:'',limit:48,seen:new Set(),first:true};
+const st={type:'',since:0,store:'',sort:'new',cat:'',pct:0,q:'',limit:36,seen:new Set(),first:true};
 const fmt=n=>n==null?'':Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
 const ago=t=>{const s=(Date.now()-new Date(t))/1000;if(s<60)return'من ثواني';if(s<3600)return'من '+Math.floor(s/60)+' د';if(s<86400)return'من '+Math.floor(s/3600)+' س';return'من '+Math.floor(s/86400)+' يوم'};
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -49,12 +49,19 @@ function card(p){
   <div class="meta"><span>قوة اللقطة ${sc}</span><span>${ago(p.last_change)}</span></div>${storeTag(p.store)}</div></a>`;
 }
 let timer;
+let feedCtl,feedKey='';
+const feedCache=new Map();
 async function loadFeed(){
   const g=document.getElementById('grid');if(!g)return;
-  try{const rows=await q(buildQuery());
-    g.innerHTML=rows.length?rows.map(card).join(''):'<div class="empty">مفيش عروض بالفلتر دا دلوقتي</div>';
+  const url=buildQuery();const changed=url!==feedKey;feedKey=url;
+  if(changed){const c=feedCache.get(url);if(c){g.innerHTML=c}else g.classList.add('loading')}
+  if(feedCtl)feedCtl.abort();feedCtl=new AbortController();const my=feedCtl;
+  try{const r=await fetch(SB+url,{headers:H,signal:my.signal});if(!r.ok)throw 0;const rows=await r.json();
+    if(my!==feedCtl)return;
+    const html=rows.length?rows.map(card).join(''):'<div class="empty">مفيش عروض بالفلتر دا دلوقتي</div>';
+    g.innerHTML=html;feedCache.set(url,html);if(feedCache.size>30)feedCache.delete(feedCache.keys().next().value);
     st.first=false;
-  }catch(e){document.getElementById('liveText').dataset.off='1'}
+  }catch(e){}finally{if(my===feedCtl)g.classList.remove('loading')}
 }
 async function loadStats(){
   try{const c=await counts();if(!c||!c.total)return;const total=c.total,drops=c.drops_1h||0;
@@ -64,13 +71,13 @@ async function loadStats(){
 function chips(id,list,key){
   const el=document.getElementById(id);
   el.innerHTML=list.map(([v,t])=>`<button class="chip ${st[key]==v?'on':''}" data-v="${v}">${t}</button>`).join('');
-  el.onclick=e=>{const b=e.target.closest('.chip');if(!b)return;st[key]=(key==='pct'||key==='since')?+b.dataset.v:b.dataset.v;st.limit=48;st.first=true;st.seen.clear();chips(id,list,key);loadFeed()};
+  el.onclick=e=>{const b=e.target.closest('.chip');if(!b)return;st[key]=(key==='pct'||key==='since')?+b.dataset.v:b.dataset.v;st.limit=36;st.first=true;st.seen.clear();chips(id,list,key);loadFeed()};
 }
 function feed(){document.body.classList.remove('pp-open');
   const app=document.getElementById('app');app.innerHTML='';app.append(document.getElementById('feedTpl').content.cloneNode(true));
   chips('sortChips',SORTS,'sort');chips('catChips',visibleCats(),'cat');chips('pctChips',PCTS,'pct');chips('typeChips',TYPES,'type');chips('sinceChips',SINCE,'since');
   const qi=document.getElementById('q');qi.value=st.q;let d;qi.oninput=()=>{clearTimeout(d);d=setTimeout(()=>{st.q=qi.value.trim();st.first=true;loadFeed()},400)};
-  document.getElementById('moreBtn').onclick=()=>{st.limit+=48;loadFeed()};
+  document.getElementById('moreBtn').onclick=()=>{st.limit+=36;loadFeed()};
   st.first=true;loadFeed();loadStats();
   clearInterval(timer);timer=setInterval(()=>{if(!document.hidden){loadFeed();loadStats()}},10000);
 }
