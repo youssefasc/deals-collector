@@ -52,7 +52,7 @@ async function loadStats(){
     const since=new Date(Date.now()-3600e3).toISOString();
     const r2=await fetch(SB+'products?select=id&limit=1&drop_pct=gt.0&last_change=gte.'+since,{headers:{...H,Prefer:'count=exact'}});
     const drops=(r2.headers.get('content-range')||'').split('/')[1]||'0';
-    document.getElementById('stats').innerHTML=`<div class="stat"><b>${Number(total).toLocaleString('en-US')}</b>منتج متراقب</div><div class="stat"><b>${drops}</b>سعر نزل آخر ساعة</div><div class="stat"><b>⚡</b>تحديث لحظي</div>`;
+    document.getElementById('stats').innerHTML=`<div class="stat"><b>${Number(total).toLocaleString('en-US')}</b>منتج</div><div class="stat"><b>${drops}</b>سعر نزل آخر ساعة</div><div class="stat"><b>⚡</b>تحديث لحظي</div>`;
   }catch(e){}
 }
 function chips(id,list,key){
@@ -109,7 +109,7 @@ function home(){document.body.classList.remove('pp-open');
   document.getElementById('storeGrid').innerHTML=STORES.map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'javascript:void 0'}" data-soon="${on?'':n}">${on?'<span class="tag">● مباشر</span>':''}<span class="lg"><img src="https://www.google.com/s2/favicons?domain=${dom}&sz=128" alt="${n}" onerror="this.replaceWith(document.createTextNode('${n[0]}'))"></span><b>${n}</b><small>${on?'خصومات لحد 90%':'قريباً'}</small></a>`).join('');
   document.getElementById('storeGrid').onclick=e=>{const s=e.target.closest('.store');if(s&&s.dataset.soon)toast('متجر '+s.dataset.soon+' هيتضاف قريباً 🔜')};
   const land=()=>{if(!document.getElementById('landStats'))return;fetch(SB+'products?select=id&limit=1',{headers:{...H,Prefer:'count=exact'}}).then(r=>{const t=(r.headers.get('content-range')||'').split('/')[1]||'—';
-    document.getElementById('landStats').innerHTML=`<div><b>${Number(t).toLocaleString('en-US')}</b><span>منتج متراقب</span></div><div><b>${STORES.length}</b><span>متجر مصري</span></div><div><b>24/7</b><span>مراقبة</span></div>`}).catch(()=>{});};land();timer=setInterval(()=>{if(!document.hidden)land()},10000);
+    document.getElementById('landStats').innerHTML=`<div><b>${Number(t).toLocaleString('en-US')}</b><span>منتج</span></div><div><b>${STORES.length}</b><span>متجر مصري</span></div><div><b>24/7</b><span>مراقبة</span></div>`}).catch(()=>{});};land();timer=setInterval(()=>{if(!document.hidden)land()},10000);
   document.title='عروض متتفوتش — أفضل عروض المتاجر المصرية في مكان واحد';scrollTo(0,0);
 }
 document.getElementById('topSearch').onsubmit=e=>{e.preventDefault();const v=document.getElementById('topQ').value.trim();st.q=v;st.store='';st.first=true;const h='#/deals'+(v?'?q='+encodeURIComponent(v):'');if(location.hash===h)route();else location.hash=h;document.getElementById('topQ').blur()};
