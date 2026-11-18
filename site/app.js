@@ -109,9 +109,12 @@ function home(){
     document.getElementById('landStats').innerHTML=`<div><b>${Number(t).toLocaleString('en-US')}</b><span>منتج متراقب</span></div><div><b>${STORES.length}</b><span>متجر مصري</span></div><div><b>24/7</b><span>مراقبة</span></div>`}).catch(()=>{});};land();timer=setInterval(()=>{if(!document.hidden)land()},10000);
   document.title='عروض متتفوتش — أفضل عروض المتاجر المصرية في مكان واحد';scrollTo(0,0);
 }
+document.getElementById('topSearch').onsubmit=e=>{e.preventDefault();const v=document.getElementById('topQ').value.trim();st.q=v;st.first=true;const h='#/deals'+(v?'?q='+encodeURIComponent(v):'');if(location.hash===h)route();else location.hash=h;document.getElementById('topQ').blur()};
+let tq;document.getElementById('topQ').oninput=()=>{if(!document.getElementById('grid'))return;clearTimeout(tq);tq=setTimeout(()=>{st.q=document.getElementById('topQ').value.trim();st.first=true;loadFeed()},400)};
+document.addEventListener('click',e=>{if(e.target.closest('#searchBtn')){e.preventDefault();const i=document.getElementById('topQ');scrollTo({top:0,behavior:'smooth'});setTimeout(()=>i.focus(),250)}});
 function route(){const hsh=location.hash;const m=hsh.match(/^#\/p\/(.+)/);
   if(m)return product(decodeURIComponent(m[1]));
   if(hsh==='#stores'){if(!document.getElementById('storeGrid'))home();document.getElementById('stores').scrollIntoView({behavior:'smooth'});return}
-  if(hsh.startsWith('#/deals')){const s=(hsh.match(/store=(\w+)/)||[])[1]||'';st.store=s;feed();const n=(STORES.find(x=>x[0]===s)||[])[1];document.getElementById('feedTitle').innerHTML=n?`عروض <span>${n}</span>`:'اللي نزل <span>دلوقتي</span> — كل المتاجر';document.title='عروض متتفوتش';scrollTo(0,0);return}
+  if(hsh.startsWith('#/deals')){const s=(hsh.match(/store=(\w+)/)||[])[1]||'';st.store=s;const qq=hsh.match(/[?&]q=([^&]+)/);st.q=qq?decodeURIComponent(qq[1]):st.q;document.getElementById('topQ').value=st.q;feed();const n=(STORES.find(x=>x[0]===s)||[])[1];document.getElementById('feedTitle').innerHTML=n?`عروض <span>${n}</span>`:'اللي نزل <span>دلوقتي</span> — كل المتاجر';document.title='عروض متتفوتش';scrollTo(0,0);return}
   home()}
 addEventListener('hashchange',route);route();
