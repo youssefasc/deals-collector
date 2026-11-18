@@ -26,9 +26,35 @@
   <span>الأسعار بتتحدث تلقائياً — اتأكد من السعر في المتجر قبل الشراء.</span>
 </footer>
 
+<template id="homeTpl">
+  <section class="land">
+    <span class="pill">⚡ بنتابع الأسعار 24 ساعة</span>
+    <h1>أقوى العروض في مصر… <span>من غير ما تدوّر</span> 🔥</h1>
+    <p>«عروض متتفوتش» بيراقب أسعار <b>آلاف المنتجات</b> في <b>أهم المتاجر المصرية</b> لحظة بلحظة. أول ما سعر ينزل بجد بيظهرلك هنا — ومعاه <b>تاريخ سعره كامل</b> عشان تتأكد إن الخصم حقيقي مش وهمي، وتشتري وأنت مطمّن.</p>
+    <div class="cta">
+      <a class="btn buy" href="#/deals">⚡ شوف اللي نزل دلوقتي</a>
+      <a class="btn" href="#stores">🛍️ اختار المتجر</a>
+      <a class="btn tg" id="botBtn" target="_blank" rel="noopener">🤖 بوت تتبع الأسعار</a>
+      <a class="btn tg" href="https://t.me/offer_egypt" target="_blank" rel="noopener">📢 قناة التليجرام</a>
+    </div>
+    <div class="nums" id="landStats"></div>
+  </section>
+  <section class="why">
+    <div><b>📉 كشف الخصم الوهمي</b><span>بنقارن السعر بتاريخه، ونقولك لو الخصم حقيقي ولا متضخم.</span></div>
+    <div><b>⏱️ تحديث كل 10 ثواني</b><span>العروض بتتحدث قدامك من غير ما تعمل ريفريش.</span></div>
+    <div><b>🔥 قوة اللقطة</b><span>تقييم من 100 لكل عرض عشان تعرف اللقطة من أول نظرة.</span></div>
+  </section>
+  <section id="stores">
+    <h2>🛍️ تسوّق حسب المتجر</h2>
+    <p class="sub">اختار متجر وشوف كل عروضه، أو شوف عروض كل المتاجر مع بعض.</p>
+    <a class="allStores" href="#/deals">🌐 عروض كل المتاجر</a>
+    <div class="stores" id="storeGrid"></div>
+  </section>
+</template>
+
 <template id="feedTpl">
   <section class="hero">
-    <h1>اللي نزل <span>دلوقتي</span></h1>
+    <h1 id="feedTitle">اللي نزل <span>دلوقتي</span></h1>
     <p id="heroSub">بنراقب أسعار أمازون مصر طول الوقت — وأول ما سعر ينزل بيظهر هنا.</p>
     <div class="stats" id="stats"></div>
   </section>
@@ -42,6 +68,7 @@
   <div class="more"><button id="moreBtn">عرض أكتر</button></div>
 </template>
 
+<a class="fab" href="https://t.me/offer_egypt" target="_blank" rel="noopener" aria-label="تليجرام">✈️</a>
 <script src="app.js"></script>
 </body>
 </html>
