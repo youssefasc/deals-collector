@@ -64,7 +64,7 @@ function feed(){
   const qi=document.getElementById('q');qi.value=st.q;let d;qi.oninput=()=>{clearTimeout(d);d=setTimeout(()=>{st.q=qi.value.trim();st.first=true;loadFeed()},400)};
   document.getElementById('moreBtn').onclick=()=>{st.limit+=48;loadFeed()};
   st.first=true;loadFeed();loadStats();
-  clearInterval(timer);timer=setInterval(()=>{if(!document.hidden)loadFeed()},10000);
+  clearInterval(timer);timer=setInterval(()=>{if(!document.hidden){loadFeed();loadStats()}},10000);
 }
 function verdict(p){
   const pr=+p.price,low=+p.low_price,hi=+p.high_price;
