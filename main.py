@@ -32,6 +32,17 @@ HOT_PAGES = int(os.environ.get("HOT_PAGES", "2"))
 # صفحات بنلقط منها رابط مصدر البيانات (كل صفحة عروض ليها مصدر بفلاتر مختلفة)
 SOURCE_PAGES = [p for p in os.environ.get("SOURCE_PAGES", "https://www.amazon.eg/deals,https://www.amazon.eg/whitefriday").split(",") if p.strip()]
 
+# أقسام أمازون مصر الرئيسية (أرقامها من فلتر الأقسام في صفحات العروض)
+DEPARTMENTS = [
+    ("18018103031", "electronics"), ("18020638031", "supermarket"), ("18021876031", "health_household"),
+    ("18017989031", "beauty"), ("18021934031", "home_kitchen"), ("18018166031", "fashion"),
+    ("18022561031", "video_games"), ("18017932031", "baby"), ("18022504031", "toys"),
+    ("18022447031", "sports"), ("18021991031", "tools_home_improvement"), ("18022276031", "office"),
+    ("18017875031", "automotive"), ("18022333031", "pets"), ("18019024031", "garden"),
+    ("18018046031", "books"), ("18017808031", "arts_crafts"), ("18022048031", "industrial"),
+    ("18022219031", "musical_instruments"), ("18029450031", "other"),
+]
+
 stats = {"requests": 0, "items": 0, "inserted": 0, "changed": 0, "errors": 0, "since": time.time()}
 
 
@@ -148,6 +159,19 @@ class Amazon:
                 parts = urlsplit(urls[0])
                 q = dict(parse_qsl(parts.query, keep_blank_values=True))
                 self.feeds[src] = (parts, q)
+                # المصدر بيرجّع ٥٠٠ منتج بس في المرة — فبنعمل نسخة منه لكل قسم لوحده
+                try:
+                    flt = json.loads(q.get("filters") or "{}")
+                    if "includedDepartments" in flt:
+                        for dep_id, dep_name in DEPARTMENTS:
+                            f2 = dict(flt)
+                            f2["includedDepartments"] = [dep_id]
+                            q2 = dict(q)
+                            q2["filters"] = json.dumps(f2, separators=(",", ":"))
+                            self.feeds[f"{src}#{dep_name}"] = (parts, q2)
+                        log(f"   + {len(DEPARTMENTS)} department feeds")
+                except Exception as e:
+                    log("department feeds error", str(e)[:100])
                 log("feed found:", src)
                 for k, v in q.items():
                     log("   ", k, "=", unquote(v)[:300])
@@ -190,7 +214,10 @@ async def hot_loop(amz: Amazon, db: DB):
     while True:
         t0 = time.time()
         if time.time() >= amz.backoff_until:
-            for feed in list(amz.feeds):
+            base = [f for f in amz.feeds if "#" not in f]
+            deps = [f for f in amz.feeds if "#" in f]
+            hot = base + ([deps[int(t0 // HOT_SECONDS) % len(deps)]] if deps else [])
+            for feed in hot:
                 for i in range(HOT_PAGES):
                     items = await amz.fetch(feed, i * 30)
                     if items:
