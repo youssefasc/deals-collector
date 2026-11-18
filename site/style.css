@@ -68,3 +68,5 @@ canvas{width:100%;height:220px;background:var(--card);border:1px solid var(--lin
 .store .tag{position:absolute;top:8px;inset-inline-end:8px;font-size:10px;background:#13261b;color:var(--good);padding:2px 7px;border-radius:999px}
 .fab{position:fixed;bottom:18px;inset-inline-start:16px;width:52px;height:52px;border-radius:50%;background:#229ED9;display:grid;place-items:center;font-size:22px;box-shadow:0 6px 20px rgba(0,0,0,.4);z-index:30}
 .toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;z-index:40}
+.btn.stores-btn{background:#1d1410;border:1.5px solid var(--brand);color:var(--brand2);display:flex;align-items:center;justify-content:center;gap:8px}
+.btn.stores-btn span{transition:transform .2s}.btn.stores-btn:hover span{transform:translateX(-4px)}
