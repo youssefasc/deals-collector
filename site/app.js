@@ -5,7 +5,7 @@ const CATS=[['','الكل'],['mobiles','موبايلات'],['tablets','تابل�
 const SORTS=[['new','🆕 أحدث نزول'],['score','🔥 أقوى لقطة'],['pct','٪ أعلى خصم'],['low','📉 أقل سعر في تاريخه'],['cheap','💸 الأرخص']];
 const PCTS=[[0,'أي خصم'],[20,'+20%'],[40,'+40%'],[60,'+60%'],[80,'+80%']];
 const BOT_URL='https://t.me/AmazonEGOffersBot';
-const STORES=[['amazon','أمازون مصر','A','#ff9900',1],['amazon_now','أمازون ناو','A','#00a8e1',0],['noon','نون مصر','n','#e6c200',0],['noon_minutes','نون مينتس','n','#d4b000',0],['jumia','جوميا','J','#f68b1e',0],['talabat','طلبات مارت','t','#ff5a00',0],['breadfast','بريد فاست','B','#7b2cbf',0],['carrefour','كارفور','C','#1e5bc6',0],['btech','B.TECH','B','#e30613',0],['2b','2B','2B','#0a4ea2',0]];
+const STORES=[['amazon','أمازون مصر','amazon.eg',1],['amazon_now','أمازون ناو','amazon.eg',0],['noon','نون مصر','noon.com',0],['noon_minutes','نون مينتس','noon.com',0],['jumia','جوميا','jumia.com.eg',0],['talabat','طلبات مارت','talabat.com',0],['breadfast','بريد فاست','breadfast.com',0],['carrefour','كارفور','carrefouregypt.com',0],['btech','B.TECH','btech.com',0],['2b','2B','2b.com.eg',0]];
 const st={store:'',sort:'new',cat:'',pct:0,q:'',limit:48,seen:new Set(),first:true};
 const fmt=n=>n==null?'':Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
 const ago=t=>{const s=(Date.now()-new Date(t))/1000;if(s<60)return'من ثواني';if(s<3600)return'من '+Math.floor(s/60)+' د';if(s<86400)return'من '+Math.floor(s/3600)+' س';return'من '+Math.floor(s/86400)+' يوم'};
@@ -50,7 +50,7 @@ async function loadStats(){
     const since=new Date(Date.now()-3600e3).toISOString();
     const r2=await fetch(SB+'products?select=id&limit=1&drop_pct=gt.0&last_change=gte.'+since,{headers:{...H,Prefer:'count=exact'}});
     const drops=(r2.headers.get('content-range')||'').split('/')[1]||'0';
-    document.getElementById('stats').innerHTML=`<div class="stat"><b>${Number(total).toLocaleString('en-US')}</b>منتج متراقب</div><div class="stat"><b>${drops}</b>سعر نزل آخر ساعة</div><div class="stat"><b>10</b>ثواني بين كل تحديث</div>`;
+    document.getElementById('stats').innerHTML=`<div class="stat"><b>${Number(total).toLocaleString('en-US')}</b>منتج متراقب</div><div class="stat"><b>${drops}</b>سعر نزل آخر ساعة</div><div class="stat"><b>⚡</b>تحديث لحظي</div>`;
   }catch(e){}
 }
 function chips(id,list,key){
@@ -103,7 +103,7 @@ function toast(t){const d=document.createElement('div');d.className='toast';d.te
 function home(){
   clearInterval(timer);const app=document.getElementById('app');app.innerHTML='';app.append(document.getElementById('homeTpl').content.cloneNode(true));
   document.getElementById('botBtn').href=BOT_URL;
-  document.getElementById('storeGrid').innerHTML=STORES.map(([k,n,l,col,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'javascript:void 0'}" data-soon="${on?'':n}">${on?'<span class="tag">● مباشر</span>':''}<span class="lg" style="background:${col}">${l}</span><b>${n}</b><small>${on?'خصومات لحد 90%':'قريباً'}</small></a>`).join('');
+  document.getElementById('storeGrid').innerHTML=STORES.map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'javascript:void 0'}" data-soon="${on?'':n}">${on?'<span class="tag">● مباشر</span>':''}<span class="lg"><img src="https://www.google.com/s2/favicons?domain=${dom}&sz=128" alt="${n}" onerror="this.replaceWith(document.createTextNode('${n[0]}'))"></span><b>${n}</b><small>${on?'خصومات لحد 90%':'قريباً'}</small></a>`).join('');
   document.getElementById('storeGrid').onclick=e=>{const s=e.target.closest('.store');if(s&&s.dataset.soon)toast('متجر '+s.dataset.soon+' هيتضاف قريباً 🔜')};
   fetch(SB+'products?select=id&limit=1',{headers:{...H,Prefer:'count=exact'}}).then(r=>{const t=(r.headers.get('content-range')||'').split('/')[1]||'—';
     document.getElementById('landStats').innerHTML=`<div><b>${Number(t).toLocaleString('en-US')}</b><span>منتج متراقب</span></div><div><b>${STORES.length}</b><span>متجر مصري</span></div><div><b>24/7</b><span>مراقبة</span></div>`}).catch(()=>{});
