@@ -76,7 +76,11 @@ function home(){setNav('home');document.body.classList.remove('pp-open');clearIn
   <section class="sec" id="featSec" hidden><div class="sec-h"><h2 id="featTitle">${esc(s.featured_title||'⭐ اخترنالك')}</h2></div><div class="rail" id="featRail"></div></section>
   <section class="sec"><div class="sec-h"><div><h2>🔥 أقوى لقطات النهارده</h2><p>أعلى عروض في قوة اللقطة آخر 24 ساعة</p></div><a href="#/deals?sort=score">شوف الكل ←</a></div><div class="rail" id="hotRail">${skel(6)}</div></section>
   <section class="sec"><div class="sec-h"><div><h2>📉 نزل سعره دلوقتي</h2><p>سعرها نزل بجد عن آخر سعر سجلناه</p></div><a href="#/deals?type=drop">شوف الكل ←</a></div><div class="rail" id="dropRail">${skel(6)}</div></section>
+  <section class="sec" id="rvSec" hidden><div class="sec-h"><div><h2>👀 كمّل من حيث وقفت</h2><p>المنتجات اللي اتفرجت عليها</p></div><a href="javascript:void 0" id="rvClr">امسح</a></div><div class="rail" id="rvRail"></div></section>
+  <section class="sec" id="cpSec" hidden><div class="sec-h"><div><h2>🎟 كوبونات الخصم</h2><p>دوس على الكود وهيتنسخ</p></div><a href="#/coupons">كل الكوبونات ←</a></div><div class="cprail" id="cpRail"></div></section>
+  <a class="tgban" href="https://t.me/offer_egypt" data-chan target="_blank" rel="noopener"><span>📢</span><div><b>انضم لقناة التليجرام — أهم حاجة!</b><small>أقوى اللقطات بتوصلك أول بأول قبل ما تخلص</small></div><i>انضم ←</i></a>
   <div id="rails"></div>
+  <section class="sec how"><div class="sec-h"><h2>إزاي بنشتغل؟</h2></div><div class="steps"><div><i>1</i><b>بنراقب الأسعار</b><span>بنمر على كل المتاجر كل دقايق ونسجّل سعر كل منتج.</span></div><div><i>2</i><b>بنفلتر الخصم الوهمي</b><span>لو السعر اترفع قبل الخصم بنعلّم عليه "مشكوك".</span></div><div><i>3</i><b>بنعرّفك فوراً</b><span>على الموقع والقناة والبوت، ومعاه تاريخ السعر كامل.</span></div></div></section>
   <section class="trust"><div><b>📉 كشف الخصم الوهمي</b><span>بنقارن السعر بتاريخه ونقولك لو الخصم حقيقي ولا متضخم.</span></div><div><b>⚡ تحديث لحظي</b><span>العروض بتتحدث قدامك من غير ما تعمل ريفريش.</span></div><div><b>🔔 تنبيه بالسعر</b><span>تابع أي منتج من أمازون على البوت ونبعتلك أول ما ينزل.</span></div></section>`;
   applySite();
   $('homeCats').innerHTML=visibleCats().slice(1).map(([k,i,n])=>`<a class="cat" href="#/deals?cat=${k}">${i} ${n}</a>`).join('');
@@ -88,11 +92,17 @@ function home(){setNav('home');document.body.classList.remove('pp-open');clearIn
 }
 function drawHome(h){
   if(!$('hotRail'))return;const c=h.counts||{};
-  $('storeGrid').innerHTML=visibleStores().map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'#'}" data-soon="${on?'':esc(n)}">${on?'<span class="tag"></span>':''}<span class="lg"><img src="${storeLogo(k,dom)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(n[0])}'))"></span><b>${esc(n)}</b><small>${on?(c[k]?fmt(c[k])+' منتج':'مباشر'):'قريباً'}</small></a>`).join('');
+  $('storeGrid').innerHTML=visibleStores().map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'#'}" data-soon="${on?'':esc(n)}">${on?'<span class="tag"></span>':''}<span class="lg"><img src="${storeLogo(k,dom)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(n[0])}'))"></span><b>${esc(n)}</b><small>${on?(c[k]?fmt(c[k])+' منتج':'مباشر'):'قريباً'}</small>${on&&(h.maxdisc||{})[k]?`<em class="upto">خصم لحد ${h.maxdisc[k]}%</em>`:''}</a>`).join('');
   $('landStats').innerHTML=`<div><b>${fmt(h.total)}</b><span>منتج بنتابعه</span></div><div><b>${visibleStores().filter(x=>x[3]).length}</b><span>متجر مصري</span></div><div><b>${fmt(h.drops_24h)}</b><span>سعر نزل النهارده</span></div>`;
   const rail=(el,rows)=>{const e=$(el);if(e)e.innerHTML=rows.length?rows.map(p=>card(p)).join(''):'<div class="empty">لسه مفيش</div>'};
   rail('hotRail',h.hot||[]);rail('dropRail',h.drops||[]);
   const f=h.featured||[];$('featSec').hidden=!f.length;if(f.length)rail('featRail',f);
+  const rv=ls.get('rv')||[];$('rvSec').hidden=!rv.length;if(rv.length)rail('rvRail',rv);
+  $('rvClr').onclick=()=>{ls.set('rv',[]);$('rvSec').hidden=true};
+  const cd=h.codes||[];$('cpSec').hidden=!cd.length;
+  $('cpRail').innerHTML=cd.map(r=>`<button class="cpmini" data-code="${esc(r.code)}">${storeTag(r.store)}<b>${esc(r.code)}</b><small>${esc(r.discount||r.title||'')}</small><em>📋 انسخ</em></button>`).join('');
+  $('cpRail').onclick=e=>{const b=e.target.closest('.cpmini');if(b)navigator.clipboard.writeText(b.dataset.code).then(()=>toast('اتنسخ الكود '+b.dataset.code+' ✅'))};
+  applySite();
   const hid=SITE.hidden_cats||[];
   $('rails').innerHTML=RAILS.filter(([k])=>!hid.includes(k)&&(h.rails||{})[k]&&h.rails[k].length>=4).map(([k,t])=>`<section class="sec"><div class="sec-h"><h2>${t}</h2><a href="#/deals?cat=${k}">شوف الكل ←</a></div><div class="rail">${h.rails[k].map(p=>card(p)).join('')}</div></section>`).join('');
 }
@@ -211,6 +221,7 @@ async function product(id){
   if(!p){app.innerHTML='<div class="empty">المنتج مش موجود أو اتشال 🤷‍♂️<br><br><a class="chip" href="#/deals">شوف العروض</a></div>';return}
   app.innerHTML=ppHTML(p,{hist:hist.length});$('cv').classList.toggle('small',hist.length<2);chart($('cv'),hist);
   document.title=p.title+' — عروض متتفوتش';
+  {const row=SEEN.get(id)||{id:p.id,store:p.store,title:p.title,image:p.image,price:p.price,list_price:p.list_price,discount_pct:p.discount_pct,drop_pct:p.drop_pct,score:p.score,last_change:p.last_change};const rv=(ls.get('rv')||[]).filter(x=>x.id!==id);rv.unshift(row);ls.set('rv',rv.slice(0,15))}
   $('share').onclick=()=>{const u=location.href;navigator.share?navigator.share({title:p.title,url:u}).catch(()=>{}):navigator.clipboard.writeText(u).then(()=>toast('اتنسخ اللينك ✅'))};
   if(p.category)cdn(`deals_feed?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change&category=eq.${p.category}&discount_pct=gte.15&order=score.desc.nullslast&limit=12`).then(r=>{r=r.filter(x=>x.id!==p.id);if(r.length&&$('simRail')){$('simSec').hidden=false;$('simRail').innerHTML=r.map(x=>card(x)).join('')}}).catch(()=>{});
 }
@@ -231,6 +242,9 @@ async function coupons(){
   document.title='الكوبونات — عروض متتفوتش';scrollTo(0,0);
 }
 
+function catsPage(){setNav('cats');clearInterval(timer);document.body.classList.remove('pp-open');
+  $('app').innerHTML=`<div class="fhead"><h1>🗂 <span>الأقسام</span></h1><p>اختار القسم اللي يهمك</p></div><div class="catgrid">${visibleCats().slice(1).map(([k,i,n])=>`<a href="#/deals?cat=${k}"><i>${i}</i><b>${n}</b></a>`).join('')}</div>`;
+  document.title='الأقسام — عروض متتفوتش';scrollTo(0,0)}
 /* ---------- misc ---------- */
 function toast(t){document.querySelectorAll('.toast').forEach(x=>x.remove());const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),2500)}
 const AFF_TAG='3rodmattfwt4-21';
@@ -250,6 +264,7 @@ function go(o){const p=new URLSearchParams();for(const k of ['q','store','cat','
 function route(){const hsh=location.hash;
   if(SITE.maintenance&&SITE.maintenance.on){$('app').innerHTML=`<div class="empty" style="padding:80px 16px;font-size:18px">🛠 ${esc(SITE.maintenance.text||'الموقع تحت الصيانة — راجعين قريب جداً')}</div>`;return}
   if(hsh.startsWith('#/coupons'))return coupons();
+  if(hsh.startsWith('#/cats'))return catsPage();
   const m=hsh.match(/^#\/p\/(.+)/);if(m)return product(decodeURIComponent(m[1]));
   if(hsh==='#stores'){if(!$('storeGrid'))home();setNav('stores');setTimeout(()=>$('stores').scrollIntoView({behavior:'smooth',block:'start'}),30);return}
   if(hsh.startsWith('#/deals')){const p=new URLSearchParams(hsh.split('?')[1]||'');
