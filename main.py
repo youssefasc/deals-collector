@@ -40,7 +40,7 @@ DEPARTMENTS = [
     ("18022561031", "video_games"), ("18017932031", "baby"), ("18022504031", "toys"),
     ("18022447031", "sports"), ("18021991031", "tools_home_improvement"), ("18022276031", "office"),
     ("18017875031", "automotive"), ("18022333031", "pets"), ("18019024031", "garden"),
-    ("18018046031", "books"), ("18017808031", "arts_crafts"), ("18022048031", "industrial"),
+    ("18017808031", "arts_crafts"), ("18022048031", "industrial"),
     ("18022219031", "musical_instruments"), ("18029450031", "other"),
 ]
 

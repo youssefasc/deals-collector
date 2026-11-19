@@ -1,7 +1,7 @@
 const SB='https://unwzvhdwxmlmknvgvrhp.supabase.co/rest/v1/';
 const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3p2aGR3eG1sbWtudmd2cmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwMjQ5MzUsImV4cCI6MjExMDYwMDkzNX0.g_500nSaAP5lF6N69ofsvozust1BpzbBU7kZXtooAyM';
 const H={apikey:KEY,Authorization:'Bearer '+KEY};
-const CATS=[['','الكل'],['mobiles','موبايلات'],['tablets','تابلت'],['laptops','لابتوب'],['tvs','شاشات'],['audio','سماعات'],['smartwatches','ساعات ذكية'],['appliances','أجهزة منزلية'],['electronics','إلكترونيات'],['gaming','ألعاب فيديو'],['grocery','سوبرماركت'],['beauty','جمال'],['health','صحة ونظافة'],['home','البيت والمطبخ'],['fashion','موضة'],['kids','أطفال'],['sports','رياضة'],['computer_acc','إكسسوارات كمبيوتر'],['mobile_acc','إكسسوارات موبايل'],['auto','عربيات'],['books_office','كتب ومكتب'],['other','أخرى']];
+const CATS=[['','الكل'],['mobiles','موبايلات'],['tablets','تابلت'],['laptops','لابتوب'],['tvs','شاشات'],['audio','سماعات'],['smartwatches','ساعات ذكية'],['appliances','أجهزة منزلية'],['electronics','إلكترونيات'],['gaming','ألعاب فيديو'],['grocery','سوبرماركت'],['beauty','جمال'],['health','صحة ونظافة'],['home','البيت والمطبخ'],['fashion','موضة'],['kids','أطفال'],['sports','رياضة'],['computer_acc','إكسسوارات كمبيوتر'],['mobile_acc','إكسسوارات موبايل'],['auto','عربيات'],['books_office','أدوات مكتبية'],['other','أخرى']];
 const SORTS=[['new','🆕 الأحدث'],['drop','📉 أكبر نزول في السعر'],['score','🔥 أقوى لقطة'],['pct','٪ أعلى خصم'],['low','📉 أقل سعر في تاريخه'],['cheap','💸 الأرخص']];
 const TYPES=[['','كل العروض'],['drop','📉 نزل سعره'],['disc','🏷 خصم المتجر'],['lowest','🔥 أقل سعر تاريخي']];
 const SINCE=[[0,'أي وقت'],[1,'آخر ساعة'],[24,'آخر 24 ساعة'],[168,'آخر أسبوع']];
