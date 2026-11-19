@@ -92,9 +92,9 @@ function home(){setNav('home');document.body.classList.remove('pp-open');clearIn
   document.title='عروض متتفوتش — أفضل عروض المتاجر المصرية في مكان واحد';
 }
 function drawHome(h){
-  if(!$('hotRail'))return;const c=h.counts||{};
-  $('storeGrid').innerHTML=visibleStores().map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'#'}" data-soon="${on?'':esc(n)}">${on?'<span class="tag"></span>':''}<span class="lg"><img src="${storeLogo(k,dom)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(n[0])}'))"></span><b>${esc(n)}</b><small>${on?(c[k]?fmt(c[k])+' منتج':'مباشر'):'قريباً'}</small>${on&&stale(k)?`<em class="paused">⏸ آخر تحديث ${ago(stale(k))}</em>`:on&&(h.maxdisc||{})[k]?`<em class="upto">خصم لحد ${h.maxdisc[k]}%</em>`:''}</a>`).join('');
-  $('landStats').innerHTML=`<div><b>${fmt(h.total)}</b><span>منتج بنتابعه</span></div><div><b>${visibleStores().filter(x=>x[3]).length}</b><span>متجر مصري</span></div><div><b>${fmt(h.drops_24h)}</b><span>سعر نزل النهارده</span></div>`;
+  if(!$('hotRail'))return;const c=h.counts||{},ac=h.all_counts||{};
+  $('storeGrid').innerHTML=visibleStores().map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'#'}" data-soon="${on?'':esc(n)}">${on?'<span class="tag"></span>':''}<span class="lg"><img src="${storeLogo(k,dom)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(n[0])}'))"></span><b>${esc(n)}</b><small>${on?(ac[k]?fmt(ac[k])+' منتج':'مباشر'):'قريباً'}</small>${on&&c[k]?`<em class="dealsn">🔥 ${fmt(c[k])} عرض</em>`:''}${on&&stale(k)?`<em class="paused">⏸ آخر تحديث ${ago(stale(k))}</em>`:on&&(h.maxdisc||{})[k]?`<em class="upto">خصم لحد ${h.maxdisc[k]}%</em>`:''}</a>`).join('');
+  $('landStats').innerHTML=`<div><b>${fmt(h.all_total||h.total)}</b><span>منتج بنتابعه</span></div><div><b>${fmt(h.total)}</b><span>عرض شغال</span></div><div><b>${visibleStores().filter(x=>x[3]).length}</b><span>متجر مصري</span></div><div><b>${fmt(h.drops_24h)}</b><span>سعر نزل النهارده</span></div>`;
   const rail=(el,rows)=>{const e=$(el);if(e)e.innerHTML=rows.length?rows.map(p=>card(p)).join(''):'<div class="empty">لسه مفيش</div>'};
   rail('hotRail',h.hot||[]);rail('dropRail',h.drops||[]);
   const f=h.featured||[];$('featSec').hidden=!f.length;if(f.length)rail('featRail',f);
@@ -153,8 +153,8 @@ function activeFilters(){return (st.cat?1:0)+(st.pct?1:0)+(st.since?1:0)}
 function feed(){setNav(st.type==='drop'?'drop':'deals');document.body.classList.remove('pp-open');clearInterval(timer);
   const app=$('app');const sn=st.store?storeName(st.store):'';const cn=st.cat?(CATS.find(c=>c[0]===st.cat)||[])[2]:'';
   const title=st.q?`نتايج «<span>${esc(st.q)}</span>»`:st.type==='drop'?'📉 <span>نزل سعره</span> دلوقتي':sn?`عروض <span>${esc(sn)}</span>`:cn?`عروض <span>${esc(cn)}</span>`:'أحدث <span>العروض</span>';
-  const cnt=st.store&&HOME&&HOME.counts?HOME.counts[st.store]:HOME&&HOME.total;
-  app.innerHTML=`<div class="fhead"><h1>${title}</h1><p>${cnt?fmt(cnt)+' منتج · ':''}بيتحدث لحظياً ⚡</p></div>
+  const cnt=st.store&&HOME&&HOME.counts?HOME.counts[st.store]:HOME&&HOME.total;const cntAll=st.store&&HOME&&HOME.all_counts?HOME.all_counts[st.store]:HOME&&HOME.all_total;
+  app.innerHTML=`<div class="fhead"><h1>${title}</h1><p>${cntAll?fmt(cntAll)+' منتج بنتابعه · ':''}${cnt?fmt(cnt)+' منهم عليه عرض · ':''}بيتحدث لحظياً ⚡</p></div>
   <div class="bar"><div class="chips" id="typeChips"></div>
   <div class="row2"><select id="sortSel">${SORTS.map(([v,t])=>`<option value="${v}" ${st.sort===v?'selected':''}>${t}</option>`).join('')}</select>
   <button class="chip flt" id="fltBtn">⚙️ فلترة${activeFilters()?`<b>${activeFilters()}</b>`:''}</button>${st.store?`<button class="chip" id="clrStore">✕ ${esc(sn)}</button>`:''}</div></div>
