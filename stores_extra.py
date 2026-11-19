@@ -1042,53 +1042,80 @@ WE_JS = r"""() => {
 WE_TABS = ["Mobiles", "Accessories", "Gaming", "Internet Devices", "Land line Phones", "موبايلات", "الموبايلات", "اكسسوارات", "الإكسسوارات", "ألعاب", "أجهزة الإنترنت", "تليفونات أرضية"]
 
 
+TE_BASE = "https://te.eg"
+TE_SEEDS = ["/en/web/guest/personal/devices/mobile-phones", "/en/web/guest/personal/devices/routers",
+            "/en/web/guest/personal/devices/5g-devices/mobile"]
+TE_JS = r"""() => {
+  const out = [], used = new Set();
+  for (const a of document.querySelectorAll('a[href*="/w/"]')) {
+    let card = a;
+    for (let i = 0; i < 7 && card; i++) { card = card.parentElement; if (card && card.querySelector('img') && /\d{3,}\s*(EGP|EPG|جنيه)/i.test(card.innerText)) break; }
+    if (!card || used.has(card) || !/\d{3,}\s*(EGP|EPG|جنيه)/i.test(card.innerText)) continue;
+    used.add(card);
+    const t = card.innerText;
+    const prices = [...t.matchAll(/([\d,\.]{3,})\s*(?:EGP|EPG|جنيه)/gi)].map(m => +m[1].replace(/,/g, '')).filter(x => x > 0);
+    const lines = t.split('\n').map(s => s.trim()).filter(Boolean);
+    const name = (a.innerText || '').trim().length > 3 ? a.innerText.trim() : lines.find(l => !/\d{3,}\s*(EGP|EPG)/i.test(l) && !/^(compare|buy now|add to cart|out of stock|in stock|details)$/i.test(l) && l.length > 3);
+    const img = card.querySelector('img');
+    if (name && prices.length) out.push({name, url: a.href.split('?')[0], price: Math.min(...prices), was: prices.length > 1 ? Math.max(...prices) : null,
+      img: img ? (img.currentSrc || img.src) : null, oos: /out of stock|غير متوفر|نفذ/i.test(t)});
+  }
+  const cats = [...new Set([...document.querySelectorAll('a[href*="/personal/devices/"]')].map(a => a.href.split('?')[0].split('#')[0]))];
+  return {out, cats};
+}"""
+
+
 async def we_loop(ctx, db, log, stats, gate, cfg):
+    """وي: كتالوج الأجهزة المعروض على موقع الشركة الرئيسي te.eg (robots بيسمح بالكامل).
+    متجر shop.te.eg نفسه ممنوع في robots فمش بنلمسه."""
     while True:
         await gate("we")
-        t0, seen, page = time.time(), set(), None
+        t0, seen, page = time.time(), {}, None
         try:
             page = await _new_page(ctx)
-            await page.goto("https://shop.te.eg/echannel/#/salesoffering", wait_until="networkidle", timeout=90000)
-            await asyncio.sleep(10)
-            for tab in [None] + WE_TABS:
-                if tab:
-                    ok = await page.evaluate("""t => { const el = [...document.querySelectorAll('body *')].find(e => e.children.length < 3 && (e.innerText || '').trim() === t);
-                        let x = el; for (let i = 0; i < 4 && x; i++) { x.click && x.click(); x = x.parentElement; } return !!el; }""", tab)
-                    if not ok:
+            queue, done = [TE_BASE + u for u in TE_SEEDS], set()
+            while queue and len(done) < 40:
+                u = queue.pop(0)
+                if u in done or "shop.te.eg" in u:
+                    continue
+                done.add(u)
+                try:
+                    await page.goto(u, wait_until="domcontentloaded", timeout=60000)
+                    await asyncio.sleep(5)
+                    for _ in range(6):  # لو فيه "عرض المزيد" أو تحميل بالسكرول
+                        await page.mouse.wheel(0, 4000)
+                        await asyncio.sleep(1.5)
+                    res = await page.evaluate(TE_JS)
+                except Exception as e:
+                    log("we error page", u[-60:], str(e)[:80])
+                    continue
+                for c in res["cats"]:
+                    if c.startswith(TE_BASE) and c not in done and "/en/" in c:
+                        queue.append(c)
+                catname = u.rstrip("/").split("/devices/")[-1]
+                items = []
+                for x in res["out"]:
+                    pid = x["url"].rstrip("/").split("/w/")[-1][:120]
+                    if not pid or pid in seen:
                         continue
-                    await asyncio.sleep(6)
-                for pg in range(40):
-                    res = await page.evaluate(WE_JS)
-                    new = [x for x in res if x["name"] not in seen]
-                    if pg == 0:
-                        log(f"we: {tab or 'default'} view {len(res)} cards, sample:", (res[:1] or [None])[0])
-                        if tab is None and not res:
-                            log("we debug text:", (await page.evaluate("document.body.innerText"))[:300].replace("\n", " | "))
-                    items = []
-                    for x in new:
-                        seen.add(x["name"])
-                        pid = re.sub(r"[^a-z0-9]+", "-", x["name"].lower()).strip("-")[:80]
-                        items.append({"store": "we", "pid": pid, "title": x["name"][:300], "image": x["img"],
-                                      "url": "https://shop.te.eg/echannel/#/salesoffering", "price": x["price"],
-                                      "list_price": x["was"] if x["was"] and x["was"] > x["price"] else None,
-                                      "discount_pct": round((1 - x["price"] / x["was"]) * 100) if x["was"] and x["was"] > x["price"] else None,
-                                      "category": "mobiles" if tab in (None, "Mobiles") and re.search(r"(?i)iphone|galaxy|phone|oppo|redmi|nokia|motorola|honor|vivo|realme", x["name"]) else _guess_cat(x["name"]), "src_category": "we", "in_stock": True})
-                    if items:
-                        stats["items"] += len(items)
-                        await db.ingest(items)
-                    # الصفحة اللي بعدها (Pagination بتاعة Ant Design) لو موجودة
-                    nxt = page.locator("li.ant-pagination-next:not(.ant-pagination-disabled)")
-                    if await nxt.count() == 0 or not new:
-                        break
-                    await nxt.first.click()
-                    await asyncio.sleep(cfg("we_delay", 4) + random.uniform(0, 2))
-            log(f"we done: {len(seen)} products in {int(time.time() - t0)}s")
+                    seen[pid] = 1
+                    was = x["was"] if x["was"] and x["was"] > x["price"] else None
+                    cat = "mobiles" if "mobile" in catname else ("electronics" if "router" in catname else _guess_cat(x["name"]))
+                    items.append({"store": "we", "pid": pid, "title": x["name"][:300], "image": x["img"], "url": x["url"],
+                                  "price": x["price"], "list_price": was, "discount_pct": round((1 - x["price"] / was) * 100) if was else None,
+                                  "category": cat, "src_category": "we:" + catname, "in_stock": not x["oos"]})
+                if items:
+                    stats["items"] += len(items)
+                    await db.ingest(items)
+                log(f"we page {catname}: {len(res['out'])} cards, total {len(seen)}")
+                await asyncio.sleep(cfg("we_delay", 4) + random.uniform(0, 2))
+            log(f"we done: {len(seen)} products from {len(done)} pages in {int(time.time() - t0)}s")
         except Exception as e:
-            log("we error", str(e)[:120])
+            log("we error", str(e)[:150])
         finally:
             if page:
                 await page.close()
-        await asyncio.sleep(cfg("we_every", 10800))
+        await asyncio.sleep(cfg("we_every_min", 360) * 60)
 
 
 # ===== اتصالات e& — المتجر الرسمي eand.com.eg/eshop2 (مسموح في robots) =====
@@ -1163,13 +1190,6 @@ def _et_item(p, cat_name):
 
 async def etisalat_loop(ctx, db, log, stats, gate, cfg):
     sample_logged = False
-    # فحص لمرة واحدة: قواعد robots وملفات sitemap/feed المعلنة لمتجر وي (قراءة ملفات عامة بس)
-    try:
-        for u in ("https://shop.te.eg/robots.txt", "https://shop.te.eg/sitemap.xml", "https://te.eg/robots.txt"):
-            r = await ctx.request.get(u, timeout=30000)
-            log(f"we-check {r.status} {u} :: {(await r.text())[:600]!r}")
-    except Exception as e:
-        log("we-check error", str(e)[:120])
     while True:
         await gate("etisalat")
         t0, seen, page = time.time(), set(), None
