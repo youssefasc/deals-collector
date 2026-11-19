@@ -172,3 +172,8 @@ main{max-width:1240px;margin:0 auto;padding:0 16px 30px;min-height:70vh}
 .catgrid a{background:var(--card);border-radius:18px;padding:16px 8px;text-align:center;box-shadow:var(--sh);transition:.15s}.catgrid a:hover{transform:translateY(-2px);color:var(--brand)}
 .catgrid i{font-style:normal;font-size:32px;display:block;margin-bottom:4px}.catgrid b{font-size:13.5px}
 @media(max-width:560px){.catgrid{grid-template-columns:repeat(3,1fr);gap:8px}}
+/* fix tall images stretching cards */
+.card .img{display:block;overflow:hidden;min-height:0}
+.card .img img{position:absolute;inset:8px;width:calc(100% - 16px);height:calc(100% - 16px);object-fit:contain}
+@media(max-width:560px){.card .img img{inset:5px;width:calc(100% - 10px);height:calc(100% - 10px)}}
+.pp .pimg{overflow:hidden}.pp .pimg img{width:100%;height:100%}
