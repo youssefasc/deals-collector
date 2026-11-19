@@ -309,7 +309,10 @@ async def talabat_loop(ctx, db, log, stats, gate, cfg):
         norm = lambda l: l.split("?")[0]
         queue = [norm(l) for l in (res.get("links") or []) if len(norm(l).strip("/").split("/")) == vparts + 2]
         if not queue:
-            log("talabat: no categories found", res.get("err"), res.get("title"))
+            # طلبات رافض (حماية) — منكررش المحاولة كتير: نستنى ساعتين ونجرب تاني بهدوء
+            log("talabat: blocked/no categories", res.get("err"), "— next try in 2h")
+            await asyncio.sleep(7200)
+            continue
         seen_pages = set()
         while queue:
             sub = queue.pop(0)
@@ -326,7 +329,10 @@ async def talabat_loop(ctx, db, log, stats, gate, cfg):
                 if r.get("err"):
                     stats["errors"] += 1
                     log("talabat error", sub, pg, r.get("err"))
-                    await asyncio.sleep(5)
+                    if r.get("err") in (403, 429):
+                        await asyncio.sleep(600)   # رفض — نهدى ١٠ دقايق قبل القسم اللي بعده
+                    else:
+                        await asyncio.sleep(5)
                     break
                 if pg == 1:
                     for l in (r.get("links") or []):
