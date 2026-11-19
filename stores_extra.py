@@ -1163,6 +1163,13 @@ def _et_item(p, cat_name):
 
 async def etisalat_loop(ctx, db, log, stats, gate, cfg):
     sample_logged = False
+    # فحص لمرة واحدة: قواعد robots وملفات sitemap/feed المعلنة لمتجر وي (قراءة ملفات عامة بس)
+    try:
+        for u in ("https://shop.te.eg/robots.txt", "https://shop.te.eg/sitemap.xml", "https://te.eg/robots.txt"):
+            r = await ctx.request.get(u, timeout=30000)
+            log(f"we-check {r.status} {u} :: {(await r.text())[:600]!r}")
+    except Exception as e:
+        log("we-check error", str(e)[:120])
     while True:
         await gate("etisalat")
         t0, seen, page = time.time(), set(), None
