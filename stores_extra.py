@@ -950,7 +950,11 @@ VODA_JS = r"""() => {
               oos: /نفذ|غير متوفر|out of stock/i.test(card.innerText)});
   }
   const total = (document.body.innerText.match(/(\d[\d,]*)\s*من نتائج/) || [])[1];
-  return {items: out, total: total ? +total.replace(/,/g, '') : null};
+  let dbg = null;
+  const miss = out.findIndex(x => !x.img);
+  if (miss >= 0) { let c = document.querySelectorAll('a[aria-label^="View details for"]')[miss]; for (let i = 0; i < 8 && c; i++) { if (c.querySelector('[class*="sale-price"],[aria-label="sale-price"]')) break; c = c.parentElement; }
+    if (c) dbg = [...c.querySelectorAll('img,picture source,[style*="background"]')].map(e => e.outerHTML.slice(0, 260)).join(' || ').slice(0, 1500); }
+  return {items: out, total: total ? +total.replace(/,/g, '') : null, dbg};
 }"""
 
 
@@ -991,6 +995,9 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
                   except Exception:
                       pass
                   res = await page.evaluate(VODA_JS)
+                  if res.get('dbg') and not getattr(vodafone_loop, '_dbg', 0):
+                      vodafone_loop._dbg = 1
+                      log('vodafone imgdbg:', res['dbg'])
                   if rnd == 0:
                       log(f"vodafone: {cu} → catalog {res.get('total')}, first view {len(res['items'])} cards, total so far {len(seen)}")
                   new = [x for x in res["items"] if x["name"] and x["name"] not in seen and x["price"]]
