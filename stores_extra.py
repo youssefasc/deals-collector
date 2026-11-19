@@ -866,6 +866,8 @@ async def feed_loop(db, log, stats, gate, cfg, http):
                 for x in rows:
                     g = lambda k: _dig(x, m.get(k, k))
                     pid, price = g("pid"), _num(g("price"))
+                    if not price and m.get("list_price"):   # Google Merchant: لو مفيش sale_price يبقى السعر هو price العادي
+                        price = _num(g("list_price"))
                     if not pid or not price:
                         continue
                     was = _num(g("list_price"))
