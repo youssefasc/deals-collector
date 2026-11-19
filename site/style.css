@@ -185,3 +185,5 @@ main{max-width:1240px;margin:0 auto;padding:0 16px 30px;min-height:70vh}
 .notice{background:#fff7e6;color:#92400e;border:1px solid #fde3b0;border-radius:12px;padding:9px 12px;font-size:13px;font-weight:700;margin:8px 0}
 
 .dealsn{display:block;font-style:normal;font-size:10.5px;font-weight:800;color:var(--brand);margin-top:1px}
+
+.card .img .noimg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:42px;opacity:.35}

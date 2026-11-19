@@ -41,7 +41,7 @@ function card(p,live){
   const atLow=p.low_price&&pr<=+p.low_price&&p.drop_pct>0;
   const sc=p.score||0;
   return `<a class="card${fresh?' fresh':''}" href="#/p/${encodeURIComponent(p.id)}">
-  <div class="img"><img loading="lazy" decoding="async" src="${esc(thumb(p.image))}" alt="" onload="this.classList.add('ok')" onerror="this.classList.add('ok')">
+  <div class="img">${p.image?`<img loading="lazy" decoding="async" src="${esc(thumb(p.image))}" alt="" onload="this.classList.add('ok')" onerror="this.outerHTML='<span class=noimg>📦</span>'">`:'<span class="noimg">📦</span>'}
   ${pct>0?`<span class="off">-${pct}%</span>`:''}${p.fake_discount?'<span class="fakeb">⚠️ خصم مشكوك</span>':atLow?'<span class="lowb">⭐ أقل سعر</span>':''}${p.drop_pct>0?`<span class="dropb">↓ نزل ${p.drop_pct}%</span>`:''}</div>
   <div class="body"><div class="title">${esc(p.title)}</div>
   <div class="price"><b>${fmt(pr)} <small>ج.م</small></b>${was?`<s>${fmt(was)}</s>`:''}</div>
