@@ -1092,42 +1092,126 @@ async def we_loop(ctx, db, log, stats, gate, cfg):
 
 
 # ===== اتصالات e& — المتجر الرسمي eand.com.eg/eshop2 (مسموح في robots) =====
-# بنفتح المتجر في متصفح عادي ونقرا الـ JSON اللي الصفحة نفسها بتجيبه (من غير أي توقيعات أو تمويه)
+# بنفتح المتجر في متصفح عادي، وبنطلب نفس الـ JSON العام اللي صفحات التصنيفات بتطلبه (من غير توقيعات أو تمويه)
+ET_BASE = "https://eand.com.eg"
+
+
+def _et_products(obj):
+    """بيلاقي لستة المنتجات جوه الرد أياً كان اسمها."""
+    if isinstance(obj, list):
+        if obj and isinstance(obj[0], dict) and any(k in obj[0] for k in ("price", "finalPrice", "productPrice", "sku", "originalPrice")):
+            return obj
+        for x in obj:
+            r = _et_products(x)
+            if r:
+                return r
+    elif isinstance(obj, dict):
+        for k in ("products", "productList", "items"):
+            if isinstance(obj.get(k), list) and obj[k]:
+                return obj[k]
+        for v in obj.values():
+            r = _et_products(v)
+            if r:
+                return r
+    return None
+
+
+def _num(v):
+    try:
+        if isinstance(v, dict):
+            v = v.get("amount") or v.get("value") or v.get("price")
+        return float(str(v).replace(",", "")) if v not in (None, "") else None
+    except Exception:
+        return None
+
+
+def _et_item(p, cat_name):
+    d = p.get("description") or {}
+    name = (d.get("name") if isinstance(d, dict) else None) or p.get("name") or p.get("productName")
+    pid = p.get("id") or p.get("sku")
+    if not name or not pid:
+        return None
+    price = None
+    for k in ("finalPrice", "productSpecialPrice", "specialPrice", "salePrice", "price"):
+        price = _num(p.get(k))
+        if price:
+            break
+    was = None
+    for k in ("originalPrice", "productPrice", "oldPrice", "listPrice", "price"):
+        v = _num(p.get(k))
+        if v and price and v > price:
+            was = v
+            break
+    if not price:
+        return None
+    img = p.get("image") or {}
+    img = (img.get("imageUrl") if isinstance(img, dict) else img) or next((x.get("imageUrl") for x in (p.get("images") or []) if isinstance(x, dict)), None)
+    if img and img.startswith("/"):
+        img = "https://www.eand.com.eg" + img
+    slug = (d.get("friendlyUrl") if isinstance(d, dict) else None) or ""
+    url = f"https://www.eand.com.eg/eshop2/#/product/{slug or pid}?pid={pid}"
+    desc = (d.get("description") if isinstance(d, dict) else None) or ""
+    desc = re.sub(r"<[^>]+>", " ", desc)[:500].strip() or None
+    stock = p.get("available")
+    if stock is None:
+        q = p.get("quantity")
+        stock = True if q is None else q > 0
+    return {"store": "etisalat", "pid": str(pid), "title": str(name)[:300], "image": img, "url": url,
+            "price": price, "list_price": was, "discount_pct": round((1 - price / was) * 100) if was else None,
+            "category": _guess_cat(f"{name} {cat_name}"), "src_category": cat_name, "in_stock": bool(stock)}
+
+
 async def etisalat_loop(ctx, db, log, stats, gate, cfg):
+    sample_logged = False
     while True:
         await gate("etisalat")
-        page, caught = None, []
+        t0, seen, page = time.time(), set(), None
         try:
             page = await _new_page(ctx)
-
-            async def on_resp(r):
-                try:
-                    if "json" in (r.headers.get("content-type") or "") and r.request.resource_type in ("xhr", "fetch"):
-                        body = await r.text()
-                        caught.append((r.url, r.status, body))
-                except Exception:
-                    pass
-            page.on("response", on_resp)
-            r = await page.goto("https://www.eand.com.eg/eshop2/#/", wait_until="networkidle", timeout=90000)
-            log(f"etisalat: home status {r.status if r else '?'}")
-            await asyncio.sleep(12)
-            txt = (await page.evaluate("document.body.innerText"))[:400].replace("\n", " | ")
-            log("etisalat text:", txt)
-            links = await page.evaluate("[...new Set([...document.querySelectorAll('a[href]')].map(a=>a.getAttribute('href')))].slice(0,60)")
-            log("etisalat links:", links)
-            cats = [l for l in links if "/category/" in (l or "")]
-            for c in cats[:3]:
-                caught.clear()
-                await page.goto(c, wait_until="networkidle", timeout=90000)
-                await asyncio.sleep(8)
-                log("etisalat cat", c, (await page.evaluate("document.body.innerText"))[300:700].replace("\n", " | "))
-                for u, st, b in caught:
-                    if "i18n" in u or "contentItems" in u:
-                        continue
-                    log(f"etisalat xhr {st} {u[:200]} :: {b[:600]}")
+            await page.goto(ET_BASE + "/eshop2/#/", wait_until="networkidle", timeout=90000)
+            await asyncio.sleep(6)
+            cids = await page.evaluate("[...new Set([...document.querySelectorAll('a[href*=\"cid=\"]')].map(a=>+(a.href.match(/cid=(\\d+)/)||[])[1]).filter(Boolean))]")
+            queue, done = list(cids), set()
+            while queue:
+                cid = queue.pop(0)
+                if cid in done:
+                    continue
+                done.add(cid)
+                cat_name = str(cid)
+                for pg in range(60):
+                    j = await page.evaluate("""async u => { const r = await fetch(u, {headers:{'Accept':'application/json'}}); return r.ok ? await r.json() : {__status:r.status}; }""",
+                                            f"{ET_BASE}/eshopapi/v1/category/getCategoryWithSubCategories?categoryId={cid}&count=48&page={pg}")
+                    if j.get("__status"):
+                        log(f"etisalat error status {j['__status']} cat {cid}")
+                        break
+                    resp = j.get("response") or {}
+                    if pg == 0:
+                        c = resp.get("category") or {}
+                        cat_name = ((c.get("description") or {}).get("name")) or cat_name
+                        for sc in (resp.get("subCategories") or resp.get("children") or (c.get("children") or [])):
+                            if isinstance(sc, dict) and sc.get("id"):
+                                queue.append(sc["id"])
+                    prods = _et_products({k: v for k, v in resp.items() if k not in ("category", "subCategories")}) or []
+                    if prods and not sample_logged:
+                        sample_logged = True
+                        log("etisalat sample keys:", list(prods[0].keys())[:40], str(prods[0])[:500])
+                    items = []
+                    for p in prods:
+                        it = _et_item(p, cat_name)
+                        if it and it["pid"] not in seen:
+                            seen.add(it["pid"])
+                            items.append(it)
+                    if items:
+                        stats["items"] += len(items)
+                        await db.ingest(items)
+                    if len(prods) < 48 or not items:
+                        break
+                    await asyncio.sleep(cfg("etisalat_delay", 3) + random.uniform(0, 2))
+                log(f"etisalat cat {cid} {cat_name}: total so far {len(seen)}")
+            log(f"etisalat done: {len(seen)} products from {len(done)} categories in {int(time.time() - t0)}s")
         except Exception as e:
             log("etisalat error", str(e)[:150])
         finally:
             if page:
                 await page.close()
-        await asyncio.sleep(3 * 3600)
+        await asyncio.sleep(cfg("etisalat_every_min", 180) * 60)
