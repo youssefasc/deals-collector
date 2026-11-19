@@ -113,6 +113,18 @@ function drawHome(h){
 
 /* ---------- feed ---------- */
 function buildQuery(off){
+  if(st.q){ // البحث بيدوّر في كل المنتجات، وكل كلمة لوحدها (مش الجملة لازقة)
+    const words=st.q.replace(/[*,()%.]/g,' ').split(/\s+/).filter(w=>w.length>0).slice(0,6);
+    let q='products?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change&hidden=is.false&in_stock=is.true';
+    if(words.length===1)q+='&title=ilike.*'+encodeURIComponent(words[0])+'*';
+    else q+='&and=('+words.map(w=>'title.ilike.*'+encodeURIComponent(w)+'*').join(',')+')';
+    if(st.store)q+='&store=eq.'+st.store;else if(st.stores&&st.stores.length)q+='&store=in.('+st.stores.join(',')+')';
+    if(st.cat)q+='&category=eq.'+st.cat;
+    if(st.type==='drop')q+='&drop_pct=gt.0';else if(st.type==='disc')q+='&discount_pct=gt.0';
+    if(st.pct)q+='&discount_pct=gte.'+st.pct;
+    const so={cheap:'price.asc',exp:'price.desc',new:'last_change.desc',drop:'drop_pct.desc.nullslast'}[st.sort]||'discount_pct.desc.nullslast,last_change.desc';
+    return q+'&order='+so+'&limit='+PAGE+'&offset='+off;
+  }
   if(st.all&&st.store){ // كل منتجات المتجر (مش العروض بس)
     let q='products?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change&store=eq.'+st.store+'&hidden=is.false&in_stock=is.true';
     if(st.cat)q+='&category=eq.'+st.cat;
@@ -149,7 +161,7 @@ async function loadPage(reset){
     st.offset=off+rows.length;st.done=rows.length<PAGE;st.first=false;
     if(off===0&&rows.length<6&&st.store&&!st.all&&!st.q&&!st.type){st.all=true;st.autoAll=true;st.done=false;feedCtl=null;return loadPage(true);}
     if(off===0&&st.autoAll&&rows.length)g.insertAdjacentHTML('afterbegin','<div class="notice" style="grid-column:1/-1">المتجر ده مفيهوش عروض كتير دلوقتي، فبنعرضلك كل منتجاته بأسعارها الحالية 👇</div>');
-    if(off===0&&!rows.length)g.innerHTML='<div class="empty">مفيش عروض بالفلتر دا دلوقتي 🤷‍♂️<br><br><button class="chip" onclick="location.hash=\'#/deals\'">امسح الفلاتر</button></div>';
+    if(off===0&&!rows.length)g.innerHTML='<div class="empty">'+(st.q?'مفيش منتج بالاسم دا — جرّب كلمة أقصر':'مفيش عروض بالفلتر دا دلوقتي')+' 🤷‍♂️<br><br><button class="chip" onclick="location.hash=\'#/deals\'">امسح الفلاتر</button></div>';
     $('sent').textContent=st.done?(st.offset?'✅ ده كل اللي موجود':''):'';
   }catch(e){if(e.name!=='AbortError')$('sent').textContent='حصلت مشكلة — اسحب لتحت تاني'}
   finally{st.loading=false}
