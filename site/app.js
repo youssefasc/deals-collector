@@ -51,6 +51,7 @@ function card(p,live){
 }
 const skel=n=>Array.from({length:n},()=>'<div class="sk"></div>').join('');
 
+const stale=k=>{const t=HOME&&HOME.lastseen&&HOME.lastseen[k];return t&&Date.now()-new Date(t)>6*3600e3?t:null};
 /* ---------- home ---------- */
 async function getHome(){
   const r=await fetch('/api/home');if(!r.ok)throw 0;const h=await r.json();if(!h||!h.hot)throw 0;
@@ -92,7 +93,7 @@ function home(){setNav('home');document.body.classList.remove('pp-open');clearIn
 }
 function drawHome(h){
   if(!$('hotRail'))return;const c=h.counts||{};
-  $('storeGrid').innerHTML=visibleStores().map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'#'}" data-soon="${on?'':esc(n)}">${on?'<span class="tag"></span>':''}<span class="lg"><img src="${storeLogo(k,dom)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(n[0])}'))"></span><b>${esc(n)}</b><small>${on?(c[k]?fmt(c[k])+' منتج':'مباشر'):'قريباً'}</small>${on&&(h.maxdisc||{})[k]?`<em class="upto">خصم لحد ${h.maxdisc[k]}%</em>`:''}</a>`).join('');
+  $('storeGrid').innerHTML=visibleStores().map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'#'}" data-soon="${on?'':esc(n)}">${on?'<span class="tag"></span>':''}<span class="lg"><img src="${storeLogo(k,dom)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(n[0])}'))"></span><b>${esc(n)}</b><small>${on?(c[k]?fmt(c[k])+' منتج':'مباشر'):'قريباً'}</small>${on&&stale(k)?`<em class="paused">⏸ آخر تحديث ${ago(stale(k))}</em>`:on&&(h.maxdisc||{})[k]?`<em class="upto">خصم لحد ${h.maxdisc[k]}%</em>`:''}</a>`).join('');
   $('landStats').innerHTML=`<div><b>${fmt(h.total)}</b><span>منتج بنتابعه</span></div><div><b>${visibleStores().filter(x=>x[3]).length}</b><span>متجر مصري</span></div><div><b>${fmt(h.drops_24h)}</b><span>سعر نزل النهارده</span></div>`;
   const rail=(el,rows)=>{const e=$(el);if(e)e.innerHTML=rows.length?rows.map(p=>card(p)).join(''):'<div class="empty">لسه مفيش</div>'};
   rail('hotRail',h.hot||[]);rail('dropRail',h.drops||[]);
@@ -157,7 +158,7 @@ function feed(){setNav(st.type==='drop'?'drop':'deals');document.body.classList.
   <div class="bar"><div class="chips" id="typeChips"></div>
   <div class="row2"><select id="sortSel">${SORTS.map(([v,t])=>`<option value="${v}" ${st.sort===v?'selected':''}>${t}</option>`).join('')}</select>
   <button class="chip flt" id="fltBtn">⚙️ فلترة${activeFilters()?`<b>${activeFilters()}</b>`:''}</button>${st.store?`<button class="chip" id="clrStore">✕ ${esc(sn)}</button>`:''}</div></div>
-  <section class="grid" id="grid"></section><div class="sentinel" id="sent"></div>`;
+  ${st.store&&stale(st.store)?`<div class="notice">⏸ أسعار ${esc(sn)} متحدثة آخر مرة ${ago(stale(st.store))} — بنحدّثها على فترات، فاتأكد من السعر في المتجر قبل ما تشتري.</div>`:''}<section class="grid" id="grid"></section><div class="sentinel" id="sent"></div>`;
   $('typeChips').innerHTML=TYPES.map(([v,t])=>`<button class="chip ${st.type===v?'on':''}" data-v="${v}">${t}</button>`).join('');
   $('typeChips').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;st.type=b.dataset.v;rerender()};
   $('sortSel').onchange=e=>{st.sort=e.target.value;loadPage(true)};
@@ -203,7 +204,7 @@ function ppHTML(p,full){
   return `<a class="back" href="javascript:history.length>1?history.back():location.hash='#/deals'">→ رجوع</a><div class="pp"><div class="pimg"><img src="${esc(big(p.image))}" alt="">${p.discount_pct>0?`<span class="off">-${p.discount_pct}%</span>`:''}</div><div>
   ${storeTag(p.store)}<h1>${esc(p.title)}</h1>
   <div class="price"><b>${fmt(pr)} <small>ج.م</small></b>${lp>pr?`<s>${fmt(lp)}</s> <span class="save">وفّر ${fmt(lp-pr)} ج</span>`:''}</div>
-  <div class="verdict ${cls}">${txt}</div>
+  <div class="verdict ${cls}">${txt}</div>${stale(p.store)?`<div class="notice">⏸ السعر ده من آخر تحديث لينا ${ago(stale(p.store))} — اتأكد منه في ${esc(storeName(p.store))}.</div>`:''}
   <div class="kv"><div><small>أقل سعر</small><b>${fmt(p.low_price)||'—'}</b></div><div><small>أعلى سعر</small><b>${fmt(p.high_price)||'—'}</b></div><div><small>قوة اللقطة</small><b>${p.score||0}</b></div></div>
   <h3 class="hist-h">📈 تاريخ السعر</h3><canvas id="cv"></canvas>
   ${/^amazon/.test(p.store)?`<a class="btn trackbtn" href="${BOT_URL}?start=t_${esc(p.pid||String(p.id).split(':')[1])}" target="_blank" rel="noopener">🔔 تابع سعر المنتج ده على البوت — ونبهك أول ما ينزل</a>`:''}
