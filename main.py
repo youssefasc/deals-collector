@@ -636,6 +636,20 @@ async def coupon_loop(amz, db: "DB"):
             continue
         parts, q0 = base
         t0, total = time.time(), 0
+        if not getattr(amz, "_probed", False):
+            amz._probed = True
+            for pt in ["BUY_X_GET_Y", "BUY_MORE_SAVE_MORE", "BXGY", "BMSM", "PERCENT_OFF", "AMOUNT_OFF",
+                       "PROMOTION", "SOCIAL_MEDIA_PROMOTION", "LIGHTNING_DEAL", "PRIME_EXCLUSIVE", "BEST_DEAL"]:
+                try:
+                    flt = json.loads(q0.get("filters") or "{}"); flt["promotionTypes"] = [pt]
+                    q = dict(q0); q["filters"] = json.dumps(flt, separators=(",", ":")); q["startIndex"], q["pageSize"] = "0", "30"
+                    data = await amz._eval(urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), "")))
+                    prods = (data or {}).get("products") or [] if isinstance(data, dict) else []
+                    sample = json.dumps((prods[0].get("promotions") if prods else data if isinstance(data, dict) and data.get("err") else None), ensure_ascii=False)[:600]
+                    log(f"PROBE {pt}: {len(prods)} products; sample={sample}")
+                except Exception as e:
+                    log(f"PROBE {pt} error", repr(e)[:120])
+                await asyncio.sleep(2)
         for dep_id, dep_name in [(None, "all")] + DEPARTMENTS:
             flt = json.loads(q0.get("filters") or "{}")
             flt["promotionTypes"] = ["COUPON"]
