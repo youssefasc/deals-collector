@@ -389,7 +389,12 @@ def coupon_of(txt: str):
     return m.group(1).strip() if m else None
 
 
+_BOOK_CARD = re.compile(r"غلاف ورقي|غلاف مقوى|غلاف عادي|غلاف لين|Paperback|Hardcover|Kindle|كيندل|ISBN", re.I)
+
+
 def search_item(x: dict, cat: str, store: str = "amazon"):
+    if _BOOK_CARD.search(x.get("txt") or "") or re.fullmatch(r"[0-9]{9}[0-9X]", (x.get("asin") or "").upper()):
+        return None   # كتاب — ممنوع على المنصة
     price, lst = x.get("price"), x.get("list")
     if not x.get("asin") or not price:
         return None
