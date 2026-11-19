@@ -967,8 +967,10 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
                 await page.goto("https://eshop.vodafone.com.eg" + cu if cu.startswith("/") else cu, wait_until="domcontentloaded", timeout=60000)
                 await asyncio.sleep(cfg("vodafone_delay", 4) + random.uniform(0, 2))
               try:
-                await page.wait_for_selector('a[aria-label^="View details for"]', timeout=30000)
+                await page.wait_for_selector('a[aria-label^="View details for"]', timeout=45000)
               except Exception:
+                txt = (await page.evaluate("document.body ? document.body.innerText : ''"))[:160].replace("\n", " | ")
+                log("vodafone error no products rendered on", cu, "| page:", (await page.title())[:40], "|", txt)
                 continue
               stall, last = 0, -1
               for rnd in range(int(cfg("vodafone_scrolls", 60))):
