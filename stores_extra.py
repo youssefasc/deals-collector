@@ -958,46 +958,54 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
         try:
             page = await _new_page(ctx)
             await page.goto("https://eshop.vodafone.com.eg/ar/list", wait_until="domcontentloaded", timeout=60000)
-            try:
+            await asyncio.sleep(6)
+            cats = await page.evaluate("""() => [...new Set([...document.querySelectorAll('a[href*="category="]')].map(a => a.getAttribute('href')))]""")
+            urls = ["/ar/list"] + [c for c in cats if c and "category=" in c][:60]
+            log(f"vodafone: {len(urls) - 1} category pages")
+            for cu in urls:
+              if cu != "/ar/list":
+                await page.goto("https://eshop.vodafone.com.eg" + cu if cu.startswith("/") else cu, wait_until="domcontentloaded", timeout=60000)
+                await asyncio.sleep(cfg("vodafone_delay", 4) + random.uniform(0, 2))
+              try:
                 await page.wait_for_selector('a[aria-label^="View details for"]', timeout=30000)
-            except Exception:
-                log("vodafone error no products rendered", (await page.title())[:40])
-            stall, last = 0, -1
-            for rnd in range(int(cfg("vodafone_scrolls", 200))):
-                for _ in range(4):
-                    await page.mouse.wheel(0, 5000)
-                    await asyncio.sleep(0.7)
-                # لو فيه زرار "عرض المزيد" بندوس عليه
-                try:
-                    btn = page.locator("button:has-text('عرض المزيد'), button:has-text('تحميل المزيد'), button:has-text('Load more'), button:has-text('Show more')")
-                    if await btn.count():
-                        await btn.first.click(timeout=3000)
-                        await asyncio.sleep(2)
-                except Exception:
-                    pass
-                res = await page.evaluate(VODA_JS)
-                if rnd == 0:
-                    log(f"vodafone: catalog {res.get('total')}, first view {len(res['items'])} cards")
-                new = [x for x in res["items"] if x["name"] and x["name"] not in seen and x["price"]]
-                items = []
-                for x in new:
-                    seen[x["name"]] = 1
-                    pid = (x["href"].rstrip("/").split("/")[-1].split("?")[0] if x["href"] else
-                           re.sub(r"[^\w]+", "-", x["name"].lower()).strip("-")[:90])
-                    items.append({"store": "vodafone", "pid": pid, "title": x["name"][:300], "image": x["img"],
-                                  "url": (("https://eshop.vodafone.com.eg" + x["href"]) if x["href"] and x["href"].startswith("/") else x["href"])
-                                         or "https://eshop.vodafone.com.eg/ar/list?query=" + quote(x["name"][:60]),
-                                  "price": x["price"], "list_price": x["was"],
-                                  "discount_pct": round((1 - x["price"] / x["was"]) * 100) if x["was"] else None,
-                                  "category": _guess_cat(x["name"]), "src_category": "vodafone", "in_stock": not x["oos"]})
-                if items:
-                    stats["items"] += len(items)
-                    await db.ingest(items)
-                n = len(res["items"])
-                stall = stall + 1 if n <= last else 0
-                last = max(last, n)
-                if stall >= 4 or (res.get("total") and len(seen) >= res["total"]):
-                    break
+              except Exception:
+                continue
+              stall, last = 0, -1
+              for rnd in range(int(cfg("vodafone_scrolls", 60))):
+                  for _ in range(4):
+                      await page.mouse.wheel(0, 5000)
+                      await asyncio.sleep(0.7)
+                  # لو فيه زرار "عرض المزيد" بندوس عليه
+                  try:
+                      btn = page.locator("button:has-text('عرض المزيد'), button:has-text('تحميل المزيد'), button:has-text('Load more'), button:has-text('Show more')")
+                      if await btn.count():
+                          await btn.first.click(timeout=3000)
+                          await asyncio.sleep(2)
+                  except Exception:
+                      pass
+                  res = await page.evaluate(VODA_JS)
+                  if rnd == 0:
+                      log(f"vodafone: catalog {res.get('total')}, first view {len(res['items'])} cards")
+                  new = [x for x in res["items"] if x["name"] and x["name"] not in seen and x["price"]]
+                  items = []
+                  for x in new:
+                      seen[x["name"]] = 1
+                      pid = (x["href"].rstrip("/").split("/")[-1].split("?")[0] if x["href"] else
+                             re.sub(r"[^\w]+", "-", x["name"].lower()).strip("-")[:90])
+                      items.append({"store": "vodafone", "pid": pid, "title": x["name"][:300], "image": x["img"],
+                                    "url": (("https://eshop.vodafone.com.eg" + x["href"]) if x["href"] and x["href"].startswith("/") else x["href"])
+                                           or "https://eshop.vodafone.com.eg/ar/list?query=" + quote(x["name"][:60]),
+                                    "price": x["price"], "list_price": x["was"],
+                                    "discount_pct": round((1 - x["price"] / x["was"]) * 100) if x["was"] else None,
+                                    "category": _guess_cat(x["name"]), "src_category": "vodafone", "in_stock": not x["oos"]})
+                  if items:
+                      stats["items"] += len(items)
+                      await db.ingest(items)
+                  n = len(res["items"])
+                  stall = stall + 1 if n <= last else 0
+                  last = max(last, n)
+                  if stall >= 2:
+                      break
             log(f"vodafone done: {len(seen)} products in {int(time.time() - t0)}s")
         except Exception as e:
             log("vodafone error", str(e)[:120])
@@ -1036,8 +1044,8 @@ async def we_loop(ctx, db, log, stats, gate, cfg):
         t0, seen, page = time.time(), set(), None
         try:
             page = await _new_page(ctx)
-            await page.goto("https://shop.te.eg/echannel/#/salesoffering", wait_until="domcontentloaded", timeout=60000)
-            await asyncio.sleep(8)
+            await page.goto("https://shop.te.eg/echannel/#/salesoffering", wait_until="networkidle", timeout=90000)
+            await asyncio.sleep(10)
             for tab in [None] + WE_TABS:
                 if tab:
                     ok = await page.evaluate("""t => { const el = [...document.querySelectorAll('body *')].find(e => e.children.length < 3 && (e.innerText || '').trim() === t);
