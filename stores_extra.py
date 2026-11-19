@@ -1055,7 +1055,10 @@ TE_JS = r"""() => {
     const t = card.innerText;
     const prices = [...t.matchAll(/([\d,\.]{3,})\s*(?:EGP|EPG|جنيه)/gi)].map(m => +m[1].replace(/,/g, '')).filter(x => x > 0);
     const lines = t.split('\n').map(s => s.trim()).filter(Boolean);
-    const name = (a.innerText || '').trim().length > 3 ? a.innerText.trim() : lines.find(l => !/\d{3,}\s*(EGP|EPG)/i.test(l) && !/^(compare|buy now|add to cart|out of stock|in stock|details)$/i.test(l) && l.length > 3);
+    const BAD = /^(compare|buy now|buy|add to cart|out of stock|in stock|details|read more|اقرأ المزيد|المزيد|قارن|اشتري الآن|new|جديد|\d+%?.*off)$/i;
+    const h = card.querySelector('h1,h2,h3,h4,h5,h6,[class*="title"],[class*="name"]');
+    let name = h && h.innerText.trim();
+    if (!name || BAD.test(name) || /\d{3,}\s*(EGP|EPG)/i.test(name)) name = lines.find(l => !/\d{3,}\s*(EGP|EPG)/i.test(l) && !BAD.test(l) && l.length > 3);
     const img = card.querySelector('img');
     if (name && prices.length) out.push({name, url: a.href.split('?')[0], price: Math.min(...prices), was: prices.length > 1 ? Math.max(...prices) : null,
       img: img ? (img.currentSrc || img.src) : null, oos: /out of stock|غير متوفر|نفذ/i.test(t)});
