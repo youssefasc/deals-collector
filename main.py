@@ -14,7 +14,7 @@ import os
 import random
 import re
 import time
-from urllib.parse import urlsplit, parse_qsl, urlencode, urlunsplit, unquote
+from urllib.parse import quote, urlsplit, parse_qsl, urlencode, urlunsplit, unquote
 
 import httpx
 from playwright.async_api import async_playwright
@@ -509,7 +509,7 @@ def top_urls():
         out.append((lambda p, n=n: f"https://www.amazon.eg/s?rh=n%3A{n}&fs=true&language=ar_AE&page={p}", c, "amazon"))
     for a, c in SEARCH_SOURCES:
         out.append((lambda p, a=a: f"https://www.amazon.eg/s?i={a}&rh=p_n_deal_type%3A26901036031&language=ar_AE&page={p}", c, "amazon"))
-    out.append((lambda p: f"https://www.amazon.eg/s?me={AMAZON_NOW_SMID}&fs=true&language=ar_AE&page={p}", "grocery", "amazon_now"))
+    out.append((lambda p: f"https://www.amazon.eg/s?k=%D8%A7%D9%84&i=amazonnow&almBrandId=sAuWWBROaG&language=ar_AE&page={p}", "grocery", "amazon_now"))
     return out
 
 
@@ -561,52 +561,45 @@ async def set_location(amz):
         log("set location error", repr(e)[:120])
 
 
+NOW_KEYWORDS = ["ال", "a", "e", "لبن", "جبن", "زبادي", "زبدة", "بيض", "شاي", "قهوة", "نسكافيه", "سكر", "أرز", "مكرونة", "زيت",
+    "سمن", "دقيق", "عدس", "فول", "تونة", "صلصة", "كاتشب", "مايونيز", "عسل", "مربى", "شوكولاتة", "بسكويت", "شيبسي", "مقرمشات",
+    "حلويات", "عصير", "مياه", "مشروب", "بيبسي", "كوكاكولا", "مشروب طاقة", "حبوب افطار", "شوفان", "خبز", "توست", "فراخ", "لحم",
+    "سجق", "لانشون", "خضار", "فاكهة", "طماطم", "بطاطس", "مجمدات", "ايس كريم", "توابل", "ملح", "خل", "كريمة", "حليب أطفال",
+    "حفاضات", "مناديل", "ورق تواليت", "صابون", "شامبو", "معجون اسنان", "فرشاة", "مزيل عرق", "منظف", "مسحوق غسيل", "كلور",
+    "سائل اطباق", "معطر", "اكياس", "ألومنيوم", "طعام قطط", "طعام كلاب", "فيتامين", "بنادول", "حفاضة", "بامبرز", "جل", "كريم",
+    "لوشن", "شفرات", "فوط", "قطن", "مكسرات", "تمر", "زيتون", "مخلل", "بقوليات", "نودلز", "اندومي", "شوربة", "بهارات"]
+
+
 async def amazon_now_loop(amz, db: "DB"):
-    """أمازون ناو = منتجات البائع A31TYDXOWA7X1E (توصيل خلال دقايق)."""
+    """أمازون ناو: البحث جوه متجره (i=amazonnow) بكلمات كتير — فلتر البائع (me=) بطل يشتغل."""
     await set_location(amz)
     while True:
         await gate("now")
-        t0, total, page = time.time(), 0, 1
-        while page <= 200:
-            while time.time() < amz.backoff_until:
-                await asyncio.sleep(5)
-            res = None
-            for u in (f"https://www.amazon.eg/s?me={AMAZON_NOW_SMID}&fs=true&language=ar_AE&page={page}",
-                      f"https://www.amazon.eg/s?me={AMAZON_NOW_SMID}&language=ar_AE&page={page}",
-                      f"https://www.amazon.eg/s?i=amazonnow&almBrandId=sAuWWBROaG&fs=true&language=ar_AE&page={page}",
-                      f"https://www.amazon.eg/s?i=grocery&rh=p_6%3A{AMAZON_NOW_SMID}&language=ar_AE&page={page}"):
-                res = await fetch_search(amz, u)
-                if res and res.get("items"):
+        t0, total, seen = time.time(), 0, set()
+        for kw in NOW_KEYWORDS:
+            for page in range(1, 21):
+                while time.time() < amz.backoff_until:
+                    await asyncio.sleep(5)
+                res = await fetch_search(amz, f"https://www.amazon.eg/s?k={quote(kw)}&i=amazonnow&almBrandId=sAuWWBROaG&language=ar_AE&page={page}")
+                if not res or not res.get("items"):
                     break
-                if page == 1:
-                    log("amazon now: empty for", u[30:90])
-                    try:
-                        dbg = await amz.page.evaluate("""async (u) => { const t = await (await fetch(u)).text();
-                          const loc = (t.match(/glow-ingress-line2[^>]*>([^<]*)/) || [])[1] || '';
-                          const n = (t.match(/data-component-type="s-search-result"/g) || []).length;
-                          const msg = (t.match(/s-no-results[\s\S]{0,300}/) || [''])[0].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 150);
-                          return {loc: loc.trim(), n, len: t.length, msg}; }""", u)
-                        log("amazon now debug:", dbg)
-                    except Exception as e:
-                        log("amazon now debug err", repr(e)[:100])
-            if not res or not res.get("items"):
-                break
-            items = [i for i in (search_item(x, "grocery", "amazon_now") for x in res.get("items") or []) if i]
-            for i in items:
-                i["category"] = None   # التصنيف بيتاخد من نفس المنتج في أمازون لو موجود
-            total += len(items)
-            stats["items"] += len(items)
-            await db.ingest(items)
-            if not res.get("hasNext"):
-                break
-            page += 1
-            await asyncio.sleep(SEARCH_DELAY + random.uniform(0, 1.0))
-        log(f"amazon now done: {total} products, {page} pages in {int(time.time() - t0)}s")
+                items = [i for i in (search_item(x, "grocery", "amazon_now") for x in res.get("items") or []) if i]
+                new = [i for i in items if i["pid"] not in seen]
+                seen.update(i["pid"] for i in items)
+                for i in new:
+                    i["category"] = None
+                total += len(new)
+                stats["items"] += len(new)
+                await db.ingest(new)
+                if not res.get("hasNext") or not new:
+                    break
+                await asyncio.sleep(SEARCH_DELAY + random.uniform(0, 1.0))
+        log(f"amazon now done: {total} products in {int(time.time() - t0)}s")
         if not total:
             await asyncio.sleep(600)
             await set_location(amz)
         else:
-            await asyncio.sleep(120)
+            await asyncio.sleep(300)
 
 
 async def resale_loop(amz, db: "DB"):
