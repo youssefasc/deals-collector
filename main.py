@@ -540,19 +540,14 @@ SET_LOC_JS = r"""async (city) => {
   try {
     const el = document.getElementById('nav-global-location-data-modal-action');
     const md = el ? JSON.parse(el.getAttribute('data-a-modal')) : {};
-    const hd = Object.assign({'Content-Type': 'application/json'}, md.ajaxHeaders || {});
-    if (md.url) await fetch(md.url, {headers: md.ajaxHeaders || {}});
-    const bodies = [
-      {locationType: 'CITY', city: city, cityName: city, deviceType: 'web', storeContext: 'generic', pageType: 'Search', actionSource: 'glow'},
-      {locationType: 'CITY_WITH_DISTRICT', city: city, district: city, deviceType: 'web', storeContext: 'generic', pageType: 'Search', actionSource: 'glow'}];
-    const out = [];
-    for (const b of bodies) {
-      const r = await fetch('/portal-migration/hz/glow/address-change?actionSource=glow', {method: 'POST', headers: hd, body: JSON.stringify(b)});
-      const t = await r.text(); out.push(r.status + ':' + t.slice(0, 120));
-      if (r.ok && /isValidAddress"?\s*:\s*1|"successful"?\s*:\s*1|true/.test(t)) break;
-    }
-    const h = await (await fetch('/?language=ar_AE')).text();
-    return {out, loc: ((h.match(/glow-ingress-line2[^>]*>([^<]*)/) || [])[1] || '').trim()};
+    const u = md.url || '/portal-migration/hz/glow/get-rendered-address-selections?deviceType=desktop&pageType=Gateway&storeContext=NoStoreName&actionSource=desktop-modal';
+    const t = await (await fetch(u, {headers: md.ajaxHeaders || {}})).text();
+    const tok = (t.match(/CSRF_TOKEN\s*:\s*"([^"]+)"/) || [])[1] || '';
+    const r = await fetch('/portal-migration/hz/glow/address-change?actionSource=glow', {method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Accept': 'text/html,*/*', 'X-Requested-With': 'XMLHttpRequest', 'anti-csrftoken-a2z': tok},
+      body: JSON.stringify({locationType: 'CITY', city: city, cityName: 'القاهرة', deviceType: 'web', storeContext: 'generic', pageType: 'Gateway', actionSource: 'glow'})});
+    const res = await r.text();
+    return {tok: !!tok, status: r.status, ok: /"successful":1/.test(res), resp: res.slice(0, 80)};
   } catch (e) { return {err: String(e)}; }
 }"""
 
