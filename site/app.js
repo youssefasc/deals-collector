@@ -62,6 +62,7 @@ function home(){setNav('home');document.body.classList.remove('pp-open');clearIn
   <h1 id="landTitle">${s.hero_title||'أقوى العروض في مصر… <span>من غير ما تدوّر</span> 🔥'}</h1>
   <p id="landText">${s.hero_text||'بنراقب أسعار <b>آلاف المنتجات</b> في <b>أهم المتاجر المصرية</b> لحظة بلحظة، ونكشفلك الخصم الحقيقي من الوهمي بتاريخ السعر كامل.'}</p>
   <div class="nums" id="landStats"></div></section>
+  <section class="storebox" id="stores"><div class="sec-h"><div><h2>🏪 تسوّق حسب المتجر</h2><p>اختار متجرك وشوف كل عروضه</p></div><a href="#/deals">كل المتاجر ←</a></div><div class="stores" id="storeGrid"></div></section>
   <nav class="quick">
    <a class="main" href="#/deals"><i>⚡</i>أحدث المنتجات</a>
    <a href="#stores"><i>🏪</i>اختار المتجر</a>
@@ -71,7 +72,6 @@ function home(){setNav('home');document.body.classList.remove('pp-open');clearIn
    <a href="https://t.me/offer_egypt" data-chan target="_blank" rel="noopener"><i>📢</i>قناة التليجرام</a>
    <a href="#" id="searchBtn"><i>🔍</i>ابحث عن منتج</a>
   </nav>
-  <section class="sec" id="stores"><div class="sec-h"><div><h2>🏪 تسوّق حسب المتجر</h2></div><a href="#/deals">كل المتاجر ←</a></div><div class="stores" id="storeGrid"></div></section>
   <section class="sec"><div class="cats" id="homeCats"></div></section>
   <section class="sec" id="featSec" hidden><div class="sec-h"><h2 id="featTitle">${esc(s.featured_title||'⭐ اخترنالك')}</h2></div><div class="rail" id="featRail"></div></section>
   <section class="sec"><div class="sec-h"><div><h2>🔥 أقوى لقطات النهارده</h2><p>أعلى عروض في قوة اللقطة آخر 24 ساعة</p></div><a href="#/deals?sort=score">شوف الكل ←</a></div><div class="rail" id="hotRail">${skel(6)}</div></section>

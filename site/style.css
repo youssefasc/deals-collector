@@ -137,3 +137,12 @@ main{max-width:1240px;margin:0 auto;padding:0 16px 30px;min-height:70vh}
 .trust{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:26px}
 .trust div{background:var(--card);border-radius:18px;padding:14px;box-shadow:var(--sh)}.trust b{display:block;font-size:14.5px;margin-bottom:3px}.trust span{color:var(--mute);font-size:12.5px;line-height:1.7}
 @media(max-width:760px){.trust{grid-template-columns:1fr}}
+
+.storebox{margin-top:16px;background:var(--card);border-radius:22px;padding:16px;box-shadow:var(--sh);border:2px solid #ffe1d3}
+.storebox .sec-h h2{font-size:21px}
+.storebox .stores{grid-auto-flow:row;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));overflow:visible;gap:10px}
+.storebox .store{box-shadow:none;background:var(--bg);border:1.5px solid transparent;padding:14px 6px}
+.storebox .store:hover{border-color:var(--brand);background:#fff}
+.storebox .store .lg{width:60px;height:60px}.storebox .store .lg img{width:40px;height:40px}
+.storebox .store b{font-size:13.5px}
+@media(max-width:560px){.storebox{padding:12px}.storebox .stores{grid-template-columns:repeat(3,1fr);gap:8px}.storebox .store .lg{width:50px;height:50px}.storebox .store .lg img{width:34px;height:34px}}
