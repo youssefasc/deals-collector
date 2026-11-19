@@ -10,6 +10,7 @@ import os
 import random
 import re
 import time
+from urllib.parse import quote
 
 NOON_AFF = os.environ.get("NOON_AFF", "")      # لو عندك كود أفلييت لنون (هيتضاف للينك)
 JUMIA_AFF = os.environ.get("JUMIA_AFF", "")    # لو عندك لينك أفلييت لجوميا
@@ -939,8 +940,9 @@ VODA_JS = r"""() => {
     const pick = sel => { const e = card.querySelector(sel); return e ? num(e.innerText || e.textContent) : null; };
     const sale = pick('[class*="sale-price"],[aria-label="sale-price"]');
     const def = pick('[class*="default-price"],[aria-label="default-price"]');
-    const img = card.querySelector('img');
-    out.push({name: a.getAttribute('aria-label').replace(/^View details for\s*/, ''), href: a.getAttribute('href'),
+    const img = [...card.querySelectorAll('img')].find(i => !/wishlist|icon|\.svg/i.test(i.currentSrc || i.src || ''));
+    const link = [...card.querySelectorAll('a[href]')].map(x => x.getAttribute('href')).find(h => h && h !== '#' && !/^javascript/.test(h));
+    out.push({name: a.getAttribute('aria-label').replace(/^View details for\s*/, ''), href: link || null,
               price: sale || def, was: sale && def && def > sale ? def : null, img: img ? (img.currentSrc || img.src) : null,
               oos: /نفذ|غير متوفر|out of stock/i.test(card.innerText)});
   }
@@ -966,17 +968,19 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
                     await page.mouse.wheel(0, 4000)
                     await asyncio.sleep(0.8)
                 res = await page.evaluate(VODA_JS)
-                new = [x for x in res["items"] if x["href"] and x["href"] not in seen and x["price"]]
+                new = [x for x in res["items"] if x["name"] and x["name"] not in seen and x["price"]]
                 if pg == 0:
                     log(f"vodafone: catalog {res.get('total')}, first page {len(res['items'])} cards, sample:", (res["items"][:1] or [None])[0])
                 if not new:
                     break
                 items = []
                 for x in new:
-                    seen[x["href"]] = 1
-                    pid = x["href"].rstrip("/").split("/")[-1].split("?")[0]
+                    seen[x["name"]] = 1
+                    pid = (x["href"].rstrip("/").split("/")[-1].split("?")[0] if x["href"] else
+                           re.sub(r"[^\w]+", "-", x["name"].lower()).strip("-")[:90])
                     items.append({"store": "vodafone", "pid": pid, "title": x["name"][:300], "image": x["img"],
-                                  "url": "https://eshop.vodafone.com.eg" + x["href"] if x["href"].startswith("/") else x["href"],
+                                  "url": (("https://eshop.vodafone.com.eg" + x["href"]) if x["href"] and x["href"].startswith("/") else x["href"])
+                                         or "https://eshop.vodafone.com.eg/ar/list?query=" + quote(x["name"][:60]),
                                   "price": x["price"], "list_price": x["was"],
                                   "discount_pct": round((1 - x["price"] / x["was"]) * 100) if x["was"] else None,
                                   "category": _guess_cat(x["name"]), "src_category": "vodafone", "in_stock": not x["oos"]})
@@ -1022,17 +1026,18 @@ async def we_loop(ctx, db, log, stats, gate, cfg):
             page = await _new_page(ctx)
             await page.goto("https://shop.te.eg/echannel/#/salesoffering", wait_until="domcontentloaded", timeout=60000)
             await asyncio.sleep(8)
-            for tab in WE_TABS:
-                try:
-                    await page.get_by_text(tab, exact=True).first.click(timeout=10000)
-                except Exception as e:
-                    log("we error tab", tab, str(e)[:60]); continue
-                await asyncio.sleep(5)
+            for tab in [None] + WE_TABS:
+                if tab:
+                    ok = await page.evaluate("""t => { const el = [...document.querySelectorAll('body *')].find(e => e.children.length < 3 && (e.innerText || '').trim() === t);
+                        let x = el; for (let i = 0; i < 4 && x; i++) { x.click && x.click(); x = x.parentElement; } return !!el; }""", tab)
+                    if not ok:
+                        log("we error tab", tab, "not found"); continue
+                    await asyncio.sleep(6)
                 for pg in range(40):
                     res = await page.evaluate(WE_JS)
                     new = [x for x in res if x["name"] not in seen]
-                    if tab == WE_TABS[0] and pg == 0:
-                        log(f"we: {tab} first view {len(res)} cards, sample:", (res[:1] or [None])[0])
+                    if pg == 0:
+                        log(f"we: {tab or 'default'} view {len(res)} cards, sample:", (res[:1] or [None])[0])
                     items = []
                     for x in new:
                         seen.add(x["name"])
@@ -1041,7 +1046,7 @@ async def we_loop(ctx, db, log, stats, gate, cfg):
                                       "url": "https://shop.te.eg/echannel/#/salesoffering", "price": x["price"],
                                       "list_price": x["was"] if x["was"] and x["was"] > x["price"] else None,
                                       "discount_pct": round((1 - x["price"] / x["was"]) * 100) if x["was"] and x["was"] > x["price"] else None,
-                                      "category": _guess_cat(x["name"]) if tab != "Mobiles" else "mobiles", "src_category": "we", "in_stock": True})
+                                      "category": "mobiles" if tab in (None, "Mobiles") and re.search(r"(?i)iphone|galaxy|phone|oppo|redmi|nokia|motorola|honor|vivo|realme", x["name"]) else _guess_cat(x["name"]), "src_category": "we", "in_stock": True})
                     if items:
                         stats["items"] += len(items)
                         await db.ingest(items)
