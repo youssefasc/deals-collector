@@ -74,7 +74,7 @@ def cfg(k, default):
     return default if v is None else v
 
 
-_STORE_OF = {"coupons": "amazon", "deals": "amazon", "hot": "amazon", "search": "amazon", "nodes": "amazon", "top": "amazon",
+_STORE_OF = {"noon": "noon", "jumia": "jumia", "coupons": "amazon", "deals": "amazon", "hot": "amazon", "search": "amazon", "nodes": "amazon", "top": "amazon",
              "now": "amazon_now", "resale": "amazon_resale"}
 
 
@@ -732,8 +732,15 @@ async def main():
                 await page.goto("https://www.amazon.eg/", wait_until="domcontentloaded", timeout=45000)
             except Exception:
                 pass
+        import stores_extra
+        ctx2 = await browser.new_context(locale="ar-EG", user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"))
+        await ctx2.route(re.compile(r".*\.(png|jpe?g|gif|webp|svg|woff2?|ttf|mp4|css)(\?.*)?$"), lambda r: r.abort())
         loops = [search_loop(amz, db), top_loop(amz, db), amazon_now_loop(amz, db), resale_loop(amz, db),
-                 stats_loop(db), refresh_loop(amz), config_loop(db)]
+                 stats_loop(db), refresh_loop(amz), config_loop(db),
+                 stores_extra.noon_loop(ctx2, db, log, stats, gate, cfg),
+                 stores_extra.jumia_loop(ctx2, db, log, stats, gate, cfg)]
         if amz.feeds:
             loops += [hot_loop(amz, db), sweep_loop(amz, db), coupon_loop(amz, db)]
         else:
