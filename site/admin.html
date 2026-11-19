@@ -74,7 +74,7 @@ function tog(id,on){return `<label class="tog"><input type="checkbox" id="${id}"
 async function login(){
   TOKEN=$('pw').value.trim()||TOKEN;
   let ok=false;try{ok=await rpc('admin_check')}catch(e){}
-  if(!ok){$('lerr').textContent='كلمة السر غلط';return}
+  if(!ok){$('lerr').textContent='كلمة السر غلط';TOKEN='';try{localStorage.removeItem('adm')}catch(e){};return}
   try{localStorage.setItem('adm',TOKEN)}catch(e){}
   $('login').hidden=true;$('app').hidden=false;await loadSite();show('dash');
 }
