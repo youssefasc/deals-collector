@@ -116,8 +116,11 @@ function buildQuery(off){
   if(st.q){ // البحث بيدوّر في كل المنتجات، وكل كلمة لوحدها (مش الجملة لازقة)
     const words=st.q.replace(/[*,()%.]/g,' ').split(/\s+/).filter(w=>w.length>0).slice(0,6);
     let q='products?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change&hidden=is.false&in_stock=is.true';
-    if(words.length===1)q+='&title=ilike.*'+encodeURIComponent(words[0])+'*';
-    else q+='&and=('+words.map(w=>'title.ilike.*'+encodeURIComponent(w)+'*').join(',')+')';
+    // كل كلمة بنبحث بيها بالعربي والإنجليزي (سامسونج = samsung)
+    const SYN=[['samsung','سامسونج','سامسونغ'],['apple','ابل','أبل'],['iphone','ايفون','آيفون'],['ultra','الترا','ألترا'],['pro','برو'],['max','ماكس'],['plus','بلس'],['galaxy','جالاكسي','جالكسي','غالاكسي'],['xiaomi','شاومي'],['redmi','ريدمي'],['oppo','اوبو','أوبو'],['realme','ريلمي'],['honor','هونر','اونر'],['huawei','هواوي'],['infinix','انفينكس'],['tecno','تكنو'],['vivo','فيفو'],['nokia','نوكيا'],['lenovo','لينوفو'],['hp','اتش بي'],['dell','ديل'],['asus','اسوس','أسوس'],['acer','ايسر'],['sony','سوني'],['lg','ال جي'],['laptop','لابتوب'],['tablet','تابلت'],['airpods','ايربودز'],['watch','ساعة'],['tv','شاشة','تلفزيون'],['charger','شاحن'],['cable','كابل'],['case','جراب'],['headphones','سماعة'],['playstation','بلايستيشن'],['ps5','بلايستيشن 5'],['mobile','موبايل'],['phone','موبايل','هاتف']];
+    const alts=w=>{const l=w.toLowerCase();const g=SYN.find(s=>s.includes(l));return g?g:[w]};
+    const cond=w=>{const v=alts(w);return v.length===1?'title.ilike.*'+encodeURIComponent(v[0])+'*':'or('+v.map(x=>'title.ilike.*'+encodeURIComponent(x)+'*').join(',')+')'};
+    q+='&and=('+words.map(cond).join(',')+')';
     if(st.store)q+='&store=eq.'+st.store;else if(st.stores&&st.stores.length)q+='&store=in.('+st.stores.join(',')+')';
     if(st.cat)q+='&category=eq.'+st.cat;
     if(st.type==='drop')q+='&drop_pct=gt.0';else if(st.type==='disc')q+='&discount_pct=gt.0';
