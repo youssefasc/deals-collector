@@ -940,7 +940,7 @@ VODA_JS = r"""() => {
     const pick = sel => { const e = card.querySelector(sel); return e ? num(e.innerText || e.textContent) : null; };
     const sale = pick('[class*="sale-price"],[aria-label="sale-price"]');
     const def = pick('[class*="default-price"],[aria-label="default-price"]');
-    const BADIMG = /wishlist|icon|warranty|badge|logo|sold%20by|sold by|best\.png|wifi\.png|warning|insurance|\/content\/images-1|group-\d+|placeholder|loading|\.svg|data:image/i;
+    const BADIMG = /wishlist|icon|warranty|badge|logo|sold%20by|sold by|best[-\d]*\.png|wifi[-\d]*\.png|warning|insurance|\/content\/images-1|group-\d+|placeholder|loading|\.svg|data:image/i;
     const srcOf = i => [i.getAttribute('data-src'), i.getAttribute('data-lazy-src'), i.getAttribute('data-original'), (i.getAttribute('srcset') || i.getAttribute('data-srcset') || '').split(',').pop().trim().split(' ')[0], i.currentSrc, i.src].find(u => u && !BADIMG.test(u));
     const img0 = [...card.querySelectorAll('img')].map(i => ({u: srcOf(i), a: (i.naturalWidth || i.width || 0) * (i.naturalHeight || i.height || 0)})).filter(x => x.u).sort((a, b) => b.a - a.a)[0];
     const img = img0 ? {src: new URL(img0.u, location.href).href} : null;
@@ -1086,7 +1086,7 @@ TE_JS = r"""() => {
     const h = card.querySelector('h1,h2,h3,h4,h5,h6,[class*="title"],[class*="name"]');
     let name = h && h.innerText.trim();
     if (!name || BAD.test(name) || /\d{3,}\s*(EGP|EPG)/i.test(name)) name = lines.find(l => !/\d{3,}\s*(EGP|EPG)/i.test(l) && !BAD.test(l) && l.length > 3);
-    const BADIMG = /wishlist|icon|warranty|badge|logo|sold%20by|sold by|best\.png|wifi\.png|warning|insurance|\/content\/images-1|group-\d+|placeholder|loading|\.svg|data:image/i;
+    const BADIMG = /wishlist|icon|warranty|badge|logo|sold%20by|sold by|best[-\d]*\.png|wifi[-\d]*\.png|warning|insurance|\/content\/images-1|group-\d+|placeholder|loading|\.svg|data:image/i;
     const srcOf = i => [i.getAttribute('data-src'), i.getAttribute('data-lazy-src'), i.getAttribute('data-original'), (i.getAttribute('srcset') || i.getAttribute('data-srcset') || '').split(',').pop().trim().split(' ')[0], i.currentSrc, i.src].find(u => u && !BADIMG.test(u));
     const img0 = [...card.querySelectorAll('img')].map(i => ({u: srcOf(i), a: (i.naturalWidth || i.width || 0) * (i.naturalHeight || i.height || 0)})).filter(x => x.u).sort((a, b) => b.a - a.a)[0];
     const img = img0 ? {src: new URL(img0.u, location.href).href} : null;
