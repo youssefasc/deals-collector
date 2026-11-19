@@ -862,23 +862,6 @@ async def main():
             "Chrome/120.0.0.0 Safari/537.36"))
         await ctx2.route(re.compile(r".*\.(png|jpe?g|gif|webp|svg|woff2?|ttf|mp4|css)(\?.*)?$"), lambda r: r.abort())
         main_on = os.environ.get("AMAZON_MAIN", "1") != "0"   # أمازون العادي (أتقل حاجة على قاعدة البيانات)
-        async def probe():
-            urls = ["https://2b.com.eg/ar", "https://2b.com.eg/sitemap.xml", "https://2b.com.eg/media/sitemap.xml",
-                    "https://2b.com.eg/rest/V1/directory/currency", "https://2b.com.eg/graphql?query=%7BstoreConfig%7Bstore_name%7D%7D",
-                    "https://www.talabat.com/egypt/grocery/619848/maadi-old-el-nahda-street?aid=9838",
-                    "https://www.talabat.com/sitemap.xml", "https://www.talabat.com/egypt/talabat-mart",
-                    "https://www.breadfast.com/", "https://www.breadfast.com/sitemap.xml"]
-            for u in urls:
-                try:
-                    resp = await ctx2.request.get(u, timeout=30000)
-                    t = await resp.text()
-                    m = re.search(r"<title>([^<]{0,60})", t)
-                    r = f"{resp.status} {len(t)} " + (m.group(1) if m else t[:60]).replace("\n", " ")
-                except Exception as e:
-                    r = "EXC " + str(e)[:80]
-                log("PROBE2", u, "→", r)
-                await asyncio.sleep(3)
-        asyncio.create_task(probe())
         loops = ([search_loop(amz, db), top_loop(amz, db)] if main_on else []) + [amazon_now_loop(amz, db), resale_loop(amz, db),
                  stats_loop(db), refresh_loop(amz), config_loop(db),
                  stores_extra.talabat_loop(ctx2, db, store_log, stats, gate, cfg),

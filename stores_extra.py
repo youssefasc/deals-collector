@@ -294,6 +294,40 @@ TALABAT_VENDOR = os.environ.get("TALABAT_VENDOR", "/egypt/grocery/619848/maadi-o
 TALABAT_AID = os.environ.get("TALABAT_AID", "9838")   # منطقة التوصيل (المعادي) — بتفتح كل منتجات طلبات مارت بالصفحات
 
 
+async def _tal_get(ctx, path):
+    """صفحة من طلبات مارت بطلب HTTP عادي — وبنقرا بيانات المنتجات من __NEXT_DATA__."""
+    try:
+        r = await ctx.request.get(TALABAT_BASE + path, timeout=40000)
+        if r.status != 200:
+            return {"err": r.status}
+        h = await r.text()
+    except Exception as e:
+        return {"err": str(e)[:80]}
+    m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', h, re.S)
+    if not m:
+        return {"err": "nodata"}
+    try:
+        j = json.loads(m.group(1))
+    except Exception:
+        return {"err": "badjson"}
+    arr = []
+    def walk(v, d):
+        if not v or d > 14:
+            return
+        if isinstance(v, list):
+            if v and isinstance(v[0], dict) and v[0].get("dhVendorId") and "price" in v[0]:
+                arr.extend(v); return
+            for x in v: walk(x, d + 1)
+        elif isinstance(v, dict):
+            for x in v.values(): walk(x, d + 1)
+    walk(j, 0)
+    vend = re.escape(TALABAT_VENDOR)
+    links = sorted(set(re.findall(r'href="(' + vend + r'/[a-z0-9-]+/[a-z0-9-]+)', h)))
+    return {"items": [{"sku": p.get("sku"), "title": p.get("title"), "slug": p.get("slug"), "price": p.get("price"),
+                       "was": p.get("originalPrice"), "img": p.get("image"), "oos": p.get("inStock") is False} for p in arr],
+            "links": links}
+
+
 async def talabat_loop(ctx, db, log, stats, gate, cfg):
     page = await _new_page(ctx)
     try:
@@ -305,7 +339,7 @@ async def talabat_loop(ctx, db, log, stats, gate, cfg):
     while True:
         await gate("talabat")
         t0, total = time.time(), 0
-        res = await page.evaluate(TALABAT_JS, f"{TALABAT_VENDOR}?aid={TALABAT_AID}")
+        res = await _tal_get(ctx, f"{TALABAT_VENDOR}?aid={TALABAT_AID}")
         norm = lambda l: l.split("?")[0]
         queue = [norm(l) for l in (res.get("links") or []) if len(norm(l).strip("/").split("/")) == vparts + 2]
         if not queue:
@@ -328,7 +362,7 @@ async def talabat_loop(ctx, db, log, stats, gate, cfg):
             for pg in range(1, 60):
                 await gate("talabat")
                 stats["requests"] += 1
-                r = await page.evaluate(TALABAT_JS, f"{sub}?aid={TALABAT_AID}&page={pg}")
+                r = await _tal_get(ctx, f"{sub}?aid={TALABAT_AID}&page={pg}")
                 if r.get("err"):
                     stats["errors"] += 1
                     log("talabat error", sub, pg, r.get("err"))
