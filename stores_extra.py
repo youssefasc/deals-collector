@@ -964,6 +964,14 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
         t0, seen, page = time.time(), {}, None
         try:
             page = await _new_page(ctx)
+            # صفحة فودافون بس: بنسمح بصور المنتجات (من غير الإعلانات) عشان الموقع يحط رابط الصورة الحقيقي
+            async def _allow_img(route):
+                u = route.request.url
+                if "eshop.vodafone.com.eg" in u:
+                    await route.continue_()
+                else:
+                    await route.abort()
+            await page.route(lambda u: u.split("?")[0].lower().endswith((".png", ".jpg", ".jpeg", ".webp")) or "/asset/content/" in u, _allow_img)
             await page.goto("https://eshop.vodafone.com.eg/ar/list", wait_until="domcontentloaded", timeout=60000)
             await asyncio.sleep(6)
             cats = await page.evaluate("""() => [...new Set([...document.querySelectorAll('a[href*="category="]')].map(a => a.getAttribute('href')))]""")
