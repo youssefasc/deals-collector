@@ -226,7 +226,7 @@ async function product(id){
   app.innerHTML=ppHTML(p,{hist:hist.length});$('cv').classList.toggle('small',hist.length<2);chart($('cv'),hist);
   document.title=p.title+' — عروض متتفوتش';
   {const row=SEEN.get(id)||{id:p.id,store:p.store,title:p.title,image:p.image,price:p.price,list_price:p.list_price,discount_pct:p.discount_pct,drop_pct:p.drop_pct,score:p.score,last_change:p.last_change};const rv=(ls.get('rv')||[]).filter(x=>x.id!==id);rv.unshift(row);ls.set('rv',rv.slice(0,15))}
-  const bb=$('buyBtn');if(bb)bb.onclick=e=>{if(bb.dataset.ready!=='1'){e.preventDefault()}};
+  const bb=$('buyBtn');if(bb)bb.onclick=e=>{e.preventDefault();if(bb.dataset.ready!=='1')return;const w=window.open(bb.href,'_blank','noopener');if(!w)location.href=bb.href};
   $('share').onclick=()=>{const u=location.href;navigator.share?navigator.share({title:p.title,url:u}).catch(()=>{}):navigator.clipboard.writeText(u).then(()=>toast('اتنسخ اللينك ✅'))};
   if(p.category)cdn(`deals_feed?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change&category=eq.${p.category}&discount_pct=gte.15&order=score.desc.nullslast&limit=12`).then(r=>{r=r.filter(x=>x.id!==p.id);if(r.length&&$('simRail')){$('simSec').hidden=false;$('simRail').innerHTML=r.map(x=>card(x)).join('')}}).catch(()=>{});
 }
