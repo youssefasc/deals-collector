@@ -544,8 +544,16 @@ async def amazon_now_loop(amz, db: "DB"):
         while page <= 200:
             while time.time() < amz.backoff_until:
                 await asyncio.sleep(5)
-            res = await fetch_search(amz, f"https://www.amazon.eg/s?me={AMAZON_NOW_SMID}&fs=true&language=ar_AE&page={page}")
-            if not res:
+            res = None
+            for u in (f"https://www.amazon.eg/s?me={AMAZON_NOW_SMID}&fs=true&language=ar_AE&page={page}",
+                      f"https://www.amazon.eg/s?me={AMAZON_NOW_SMID}&language=ar_AE&page={page}",
+                      f"https://www.amazon.eg/s?i=grocery&rh=p_6%3A{AMAZON_NOW_SMID}&language=ar_AE&page={page}"):
+                res = await fetch_search(amz, u)
+                if res and res.get("items"):
+                    break
+                if page == 1:
+                    log("amazon now: empty for", u[30:90])
+            if not res or not res.get("items"):
                 break
             items = [i for i in (search_item(x, "grocery", "amazon_now") for x in res.get("items") or []) if i]
             for i in items:
@@ -787,8 +795,6 @@ async def main():
         await ctx2.route(re.compile(r".*\.(png|jpe?g|gif|webp|svg|woff2?|ttf|mp4|css)(\?.*)?$"), lambda r: r.abort())
         loops = [search_loop(amz, db), top_loop(amz, db), amazon_now_loop(amz, db), resale_loop(amz, db),
                  stats_loop(db), refresh_loop(amz), config_loop(db),
-                 stores_extra.noon_loop(ctx2, db, log, stats, gate, cfg),
-                 stores_extra.jumia_loop(ctx2, db, log, stats, gate, cfg),
                  stores_extra.talabat_loop(ctx2, db, log, stats, gate, cfg),
                  stores_extra.twob_loop(ctx2, db, log, stats, gate, cfg),
                  stores_extra.btech_loop(ctx2, db, log, stats, gate, cfg),
