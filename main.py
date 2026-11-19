@@ -868,16 +868,16 @@ async def main():
                     "https://www.talabat.com/egypt/grocery/619848/maadi-old-el-nahda-street?aid=9838",
                     "https://www.talabat.com/sitemap.xml", "https://www.talabat.com/egypt/talabat-mart",
                     "https://www.breadfast.com/", "https://www.breadfast.com/sitemap.xml"]
-            pg = await ctx2.new_page()
             for u in urls:
                 try:
-                    r = await pg.evaluate("""async u => { try { const r = await fetch(u, {credentials:'include'}); const t = await r.text();
-                       return r.status + ' ' + t.length + ' ' + ((t.match(/<title>([^<]{0,60})/)||[])[1]||t.slice(0,60)).replace(/\\s+/g,' '); } catch(e) { return 'ERR ' + e } }""", u)
+                    resp = await ctx2.request.get(u, timeout=30000)
+                    t = await resp.text()
+                    m = re.search(r"<title>([^<]{0,60})", t)
+                    r = f"{resp.status} {len(t)} " + (m.group(1) if m else t[:60]).replace("\n", " ")
                 except Exception as e:
                     r = "EXC " + str(e)[:80]
                 log("PROBE2", u, "→", r)
                 await asyncio.sleep(3)
-            await pg.close()
         asyncio.create_task(probe())
         loops = ([search_loop(amz, db), top_loop(amz, db)] if main_on else []) + [amazon_now_loop(amz, db), resale_loop(amz, db),
                  stats_loop(db), refresh_loop(amz), config_loop(db),
