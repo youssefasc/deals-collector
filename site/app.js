@@ -115,6 +115,7 @@ function drawHome(h){
 function buildQuery(off){
   let p='deals_feed?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change';
   if(st.store)p+='&store=eq.'+st.store;
+  else if(st.stores&&st.stores.length)p+='&store=in.('+st.stores.join(',')+')';
   const minD=SITE.min_discount!=null&&SITE.min_discount!==''?+SITE.min_discount:10;
   if(st.type==='drop')p+='&drop_pct=gt.0';
   else if(st.type==='disc')p+='&discount_pct=gt.0';
@@ -152,7 +153,7 @@ async function liveTop(){ // refresh first page silently, prepend new items
     g.insertAdjacentHTML('afterbegin',fresh.map(p=>card(p,1)).join(''));st.offset+=fresh.length;
   }catch(e){}
 }
-function activeFilters(){return (st.cat?1:0)+(st.pct?1:0)+(st.since?1:0)}
+function activeFilters(){return (st.cat?1:0)+(st.pct?1:0)+(st.since?1:0)+((st.stores||[]).length?1:0)}
 function feed(){setNav(st.type==='drop'?'drop':'deals');document.body.classList.remove('pp-open');clearInterval(timer);
   const app=$('app');const sn=st.store?storeName(st.store):'';const cn=st.cat?(CATS.find(c=>c[0]===st.cat)||[])[2]:'';
   const title=st.q?`نتايج «<span>${esc(st.q)}</span>»`:st.type==='drop'?'📉 <span>نزل سعره</span> دلوقتي':sn?`عروض <span>${esc(sn)}</span>`:cn?`عروض <span>${esc(cn)}</span>`:'أحدث <span>العروض</span>';
@@ -174,12 +175,12 @@ function feed(){setNav(st.type==='drop'?'drop':'deals');document.body.classList.
 function rerender(){const y=scrollY;feed();scrollTo(0,Math.min(y,140))}
 function openSheet(){
   let bg=$('sheetBg');if(!bg){document.body.insertAdjacentHTML('beforeend','<div class="sheet-bg" id="sheetBg"></div><div class="sheet" id="sheet"></div>');bg=$('sheetBg')}
-  const sh=$('sheet');const tmp={cat:st.cat,pct:st.pct,since:st.since};
-  const draw=()=>{sh.innerHTML=`<h3>القسم</h3><div class="chips" data-k="cat">${visibleCats().map(([v,i,t])=>`<button class="chip ${tmp.cat===v?'on':''}" data-v="${v}">${i} ${t}</button>`).join('')}</div>
+  const sh=$('sheet');const tmp={cat:st.cat,pct:st.pct,since:st.since,stores:[...(st.stores||[])]};
+  const draw=()=>{sh.innerHTML=`${st.store?'':`<h3>المتاجر <small class="mute">(اختار متجر أو أكتر — من غير اختيار = كل المتاجر)</small></h3><div class="chips" data-k="stores">${visibleStores().filter(x=>x[3]).map(([k,n])=>`<button class="chip ${tmp.stores.includes(k)?'on':''}" data-v="${k}">${esc(n)}</button>`).join('')}</div>`}<h3>القسم</h3><div class="chips" data-k="cat">${visibleCats().map(([v,i,t])=>`<button class="chip ${tmp.cat===v?'on':''}" data-v="${v}">${i} ${t}</button>`).join('')}</div>
   <h3>نسبة الخصم</h3><div class="chips" data-k="pct">${PCTS.map(([v,t])=>`<button class="chip ${tmp.pct==v?'on':''}" data-v="${v}">${t}</button>`).join('')}</div>
   <h3>اتحدث في</h3><div class="chips" data-k="since">${SINCE.map(([v,t])=>`<button class="chip ${tmp.since==v?'on':''}" data-v="${v}">${t}</button>`).join('')}</div>
   <button class="go" id="goF">عرض النتايج</button>`};
-  draw();sh.onclick=e=>{const b=e.target.closest('.chip');if(b){const k=b.parentElement.dataset.k;tmp[k]=k==='cat'?b.dataset.v:+b.dataset.v;draw()}if(e.target.id==='goF'){Object.assign(st,tmp);close();rerender()}};
+  draw();sh.onclick=e=>{const b=e.target.closest('.chip');if(b){const k=b.parentElement.dataset.k;if(k==='stores'){const v=b.dataset.v;tmp.stores=tmp.stores.includes(v)?tmp.stores.filter(x=>x!==v):[...tmp.stores,v]}else tmp[k]=k==='cat'?b.dataset.v:+b.dataset.v;draw()}if(e.target.id==='goF'){Object.assign(st,tmp);close();rerender()}};
   const close=()=>{bg.classList.remove('on');sh.classList.remove('on')};bg.onclick=close;
   requestAnimationFrame(()=>{bg.classList.add('on');sh.classList.add('on')});
 }
@@ -282,7 +283,7 @@ function route(){const hsh=location.hash;
   const m=hsh.match(/^#\/p\/(.+)/);if(m)return product(decodeURIComponent(m[1]));
   if(hsh==='#stores'){if(!$('storeGrid'))home();setNav('stores');setTimeout(()=>$('stores').scrollIntoView({behavior:'smooth',block:'start'}),30);return}
   if(hsh.startsWith('#/deals')){const p=new URLSearchParams(hsh.split('?')[1]||'');
-    Object.assign(st,{store:p.get('store')||'',type:p.get('type')||'',cat:p.get('cat')||'',q:p.get('q')||'',pct:0,since:0,sort:p.get('sort')||SITE.default_sort||'new'});
+    Object.assign(st,{stores:(p.get('stores')||'').split(',').filter(Boolean),store:p.get('store')||'',type:p.get('type')||'',cat:p.get('cat')||'',q:p.get('q')||'',pct:0,since:0,sort:p.get('sort')||SITE.default_sort||'new'});
     $('topQ').value=st.q;feed();document.title=(st.q||'العروض')+' — عروض متتفوتش';scrollTo(0,0);return}
   home()}
 addEventListener('hashchange',route);
