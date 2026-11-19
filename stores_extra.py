@@ -343,3 +343,206 @@ async def talabat_loop(ctx, db, log, stats, gate, cfg):
                 await asyncio.sleep(cfg("talabat_delay", 1.5) + random.uniform(0, 1.0))
         log(f"talabat done: {total} products from {len(seen_pages)} categories in {int(time.time() - t0)}s")
         await asyncio.sleep(300)
+
+
+# ═══════════════════ 2B (Magento — واجهة GraphQL العامة بتاعة الموقع) ═══════════════════
+TWOB_Q = """query($p:Int!){products(filter:{price:{from:"1"}},pageSize:100,currentPage:$p){total_count
+ items{sku name url_key small_image{url} stock_status
+  price_range{minimum_price{regular_price{value} final_price{value}}} categories{url_path}}}}"""
+
+
+def _cat_from_path(path: str) -> str:
+    p = (path or "").lower()
+    for k, c in [("tablet", "tablets"), ("mobile", "mobiles"), ("laptop", "laptops"), ("notebook", "laptops"),
+                 ("monitor", "computer_acc"), ("screen", "tvs"), ("tv", "tvs"), ("watch", "smartwatches"),
+                 ("headphone", "audio"), ("earbud", "audio"), ("speaker", "audio"), ("audio", "audio"),
+                 ("gaming", "gaming"), ("playstation", "gaming"), ("console", "gaming"), ("accessor", "mobile_acc"),
+                 ("computer", "computer_acc"), ("printer", "computer_acc"), ("appliance", "appliances"),
+                 ("kitchen", "appliances"), ("air-condition", "appliances"), ("ac", "appliances"),
+                 ("personal-care", "health"), ("beauty", "beauty")]:
+        if k in p:
+            return c
+    return "electronics"
+
+
+async def twob_loop(ctx, db, log, stats, gate, cfg):
+    page = await _new_page(ctx)
+    try:
+        await page.goto("https://2b.com.eg/ar/", wait_until="domcontentloaded", timeout=40000)
+        log("2b home:", (await page.title())[:60])
+    except Exception as e:
+        log("2b home error", str(e)[:100])
+    js = """async ([q, p]) => { try { const r = await fetch('/graphql', {method: 'POST',
+        headers: {'Content-Type': 'application/json', Store: 'ar'}, body: JSON.stringify({query: q, variables: {p}})});
+        if (!r.ok) return {err: r.status}; return await r.json(); } catch (e) { return {err: String(e)}; } }"""
+    while True:
+        await gate("2b")
+        t0, total, pg = time.time(), 0, 1
+        while pg <= 100:
+            await gate("2b")
+            stats["requests"] += 1
+            res = await page.evaluate(js, [TWOB_Q, pg])
+            data = ((res or {}).get("data") or {}).get("products") or {}
+            if res.get("err") or not data:
+                stats["errors"] += 1
+                log("2b error", pg, res.get("err") or res.get("errors"))
+                break
+            items = []
+            for x in data.get("items") or []:
+                pr = ((x.get("price_range") or {}).get("minimum_price") or {})
+                price = (pr.get("final_price") or {}).get("value")
+                was = (pr.get("regular_price") or {}).get("value")
+                if not price or not x.get("sku"):
+                    continue
+                was = was if was and was > price else None
+                paths = " ".join(c.get("url_path") or "" for c in (x.get("categories") or []))
+                items.append({"store": "2b", "pid": x["sku"], "title": (x.get("name") or "")[:300],
+                              "image": (x.get("small_image") or {}).get("url"),
+                              "url": f"https://2b.com.eg/ar/{x.get('url_key')}.html",
+                              "price": price, "list_price": was,
+                              "discount_pct": round((1 - price / was) * 100) if was else None,
+                              "category": _cat_from_path(paths), "src_category": "2b",
+                              "in_stock": x.get("stock_status") == "IN_STOCK"})
+            total += len(items)
+            stats["items"] += len(items)
+            await db.ingest(items)
+            if pg * 100 >= (data.get("total_count") or 0):
+                break
+            pg += 1
+            await asyncio.sleep(cfg("2b_delay", 2.0) + random.uniform(0, 1.0))
+        log(f"2b done: {total} products in {int(time.time() - t0)}s")
+        await asyncio.sleep(600)
+
+
+# ═══════════════════ B.TECH (صفحات الأقسام فيها بيانات المنتجات جاهزة) ═══════════════════
+BTECH_CATS = ["mobiles-tablets", "laptop-pc", "tvs-projectors", "electronics", "large-home-appliances",
+              "small-home-appliances", "air-conditioners", "wearables", "personal-care", "gaming-area"]
+BTECH_MAP = {"mobiles-tablets": "mobiles", "laptop-pc": "laptops", "tvs-projectors": "tvs", "electronics": "electronics",
+             "large-home-appliances": "appliances", "small-home-appliances": "appliances",
+             "air-conditioners": "appliances", "wearables": "smartwatches", "personal-care": "health",
+             "gaming-area": "gaming"}
+
+BTECH_JS = r"""async (u) => { try {
+  const r = await fetch(u); if (!r.ok) return {err: r.status};
+  const h = (await r.text()).replace(/\\"/g, '"');
+  const out = []; const re = /\{"variant_id":"([^"]+)","product_id":"[^"]*","offer_id":"([^"]*)","sku":"([^"]*)","name":"((?:[^"\\]|\\.)*)"[\s\S]*?"thumbnail_url":"([^"]*)","price":\{"final_price":([\d.]+)[\s\S]*?"base_price":([\d.]+)[\s\S]*?"is_in_stock":(true|false)/g;
+  let m; while ((m = re.exec(h))) out.push({vid: m[1], offer: m[2], sku: m[3], name: m[4], img: m[5], price: +m[6], was: +m[7], stock: m[8] === 'true'});
+  const tp = (h.match(/"total_pages":(\d+)/) || [])[1];
+  return {items: out, pages: tp ? +tp : null};
+} catch (e) { return {err: String(e)}; } }"""
+
+
+async def btech_loop(ctx, db, log, stats, gate, cfg):
+    page = await _new_page(ctx)
+    try:
+        await page.goto("https://btech.com/ar", wait_until="domcontentloaded", timeout=40000)
+        log("btech home:", (await page.title())[:60])
+    except Exception as e:
+        log("btech home error", str(e)[:100])
+    while True:
+        await gate("btech")
+        t0, total = time.time(), 0
+        for slug in BTECH_CATS:
+            pg, pages, seen = 1, 1, set()
+            while pg <= min(pages or 1, 200):
+                await gate("btech")
+                stats["requests"] += 1
+                res = await page.evaluate(BTECH_JS, f"/ar/c/{slug}?page={pg}")
+                if res.get("err"):
+                    stats["errors"] += 1
+                    log("btech error", slug, pg, res.get("err"))
+                    break
+                pages = res.get("pages") or pages
+                items = []
+                for x in res.get("items") or []:
+                    if x["vid"] in seen or not x["price"]:
+                        continue
+                    seen.add(x["vid"])
+                    was = x["was"] if x["was"] and x["was"] > x["price"] else None
+                    items.append({"store": "btech", "pid": x["vid"], "title": x["name"][:300],
+                                  "image": f"https://media.btech.com/catalogs/{x['img']}" if x["img"] else None,
+                                  "url": f"https://btech.com/ar/p/{x['vid']}?offering_id={x['offer']}",
+                                  "price": x["price"], "list_price": was,
+                                  "discount_pct": round((1 - x["price"] / was) * 100) if was else None,
+                                  "category": BTECH_MAP.get(slug, "electronics"), "src_category": "btech",
+                                  "in_stock": x["stock"]})
+                if not items:
+                    break
+                total += len(items)
+                stats["items"] += len(items)
+                await db.ingest(items)
+                pg += 1
+                await asyncio.sleep(cfg("btech_delay", 2.0) + random.uniform(0, 1.0))
+        log(f"btech done: {total} products in {int(time.time() - t0)}s")
+        await asyncio.sleep(600)
+
+
+# ═══════════════════ كارفور مصر (صفحات الأقسام فيها بيانات المنتجات جاهزة) ═══════════════════
+CARREFOUR_JS = r"""async (u) => { try {
+  const r = await fetch(u); if (!r.ok) return {err: r.status};
+  const h = (await r.text()).replace(/\\"/g, '"');
+  const out = []; const seen = new Set();
+  const re = /"stock":\{"stockLevelStatus":"(\w+)"\}[^{}]*?"imageUrl":"([^"]*)"[^{}]*?"productId":"(\d+)","productName":"((?:[^"\\]|\\.)*)"[^{}]*?"sellingPrice":([\d.]+),"markedPrice":([\d.]+)[^{}]*?"productUrl":"([^"]*)"/g;
+  let m; while ((m = re.exec(h))) { if (seen.has(m[3])) continue; seen.add(m[3]);
+    out.push({stock: m[1], img: m[2], id: m[3], name: m[4], price: +m[5], was: +m[6], url: m[7]}); }
+  const pg = h.match(/"pagination":\{"pageSize":\d+,"totalPages":(\d+)/);
+  const cats = [...new Set([...h.matchAll(/\/mafegy\/ar\/(?:[a-z0-9-]+\/)?c\/(FEGY\d+)/g)].map(x => x[1]))];
+  return {items: out, pages: pg ? +pg[1] : null, cats};
+} catch (e) { return {err: String(e)}; } }"""
+CARREFOUR_SEED = ["FEGY1500000", "FEGY1660100", "FEGY1660500", "FEGY6000000", "FEGY1200000", "FEGY1610000"]
+
+
+async def carrefour_loop(ctx, db, log, stats, gate, cfg):
+    page = await _new_page(ctx)
+    try:
+        await page.goto("https://www.carrefouregypt.com/mafegy/ar/", wait_until="domcontentloaded", timeout=40000)
+        log("carrefour home:", (await page.title())[:60])
+    except Exception as e:
+        log("carrefour home error", str(e)[:100])
+    while True:
+        await gate("carrefour")
+        t0, total = time.time(), 0
+        home = await page.evaluate(CARREFOUR_JS, "/mafegy/ar/")
+        queue = list(dict.fromkeys(CARREFOUR_SEED + (home.get("cats") or [])))
+        done, seen = set(), set()
+        while queue and len(done) < int(cfg("carrefour_max_cats", 300)):
+            code = queue.pop(0)
+            if code in done:
+                continue
+            done.add(code)
+            pg, pages = 0, 1
+            while pg < min(pages or 1, 100):
+                await gate("carrefour")
+                stats["requests"] += 1
+                res = await page.evaluate(CARREFOUR_JS, f"/mafegy/ar/c/{code}?currentPage={pg}")
+                if res.get("err"):
+                    stats["errors"] += 1
+                    log("carrefour error", code, pg, res.get("err"))
+                    break
+                if pg == 0:
+                    for c in res.get("cats") or []:
+                        if c not in done:
+                            queue.append(c)
+                pages = res.get("pages") or pages
+                items = []
+                for x in res.get("items") or []:
+                    if x["id"] in seen or not x["price"]:
+                        continue
+                    seen.add(x["id"])
+                    was = x["was"] if x["was"] and x["was"] > x["price"] else None
+                    items.append({"store": "carrefour", "pid": x["id"], "title": x["name"][:300],
+                                  "image": (x["img"] or "").split("?")[0] or None,
+                                  "url": "https://www.carrefouregypt.com" + x["url"],
+                                  "price": x["price"], "list_price": was,
+                                  "discount_pct": round((1 - x["price"] / was) * 100) if was else None,
+                                  "category": "grocery", "src_category": "carrefour:" + code,
+                                  "in_stock": x["stock"] == "inStock"})
+                if not res.get("items"):
+                    break
+                total += len(items)
+                stats["items"] += len(items)
+                await db.ingest(items)
+                pg += 1
+                await asyncio.sleep(cfg("carrefour_delay", 2.0) + random.uniform(0, 1.0))
+        log(f"carrefour done: {total} products from {len(done)} categories in {int(time.time() - t0)}s")
+        await asyncio.sleep(600)
