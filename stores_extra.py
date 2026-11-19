@@ -1115,8 +1115,16 @@ async def etisalat_loop(ctx, db, log, stats, gate, cfg):
             log("etisalat text:", txt)
             links = await page.evaluate("[...new Set([...document.querySelectorAll('a[href]')].map(a=>a.getAttribute('href')))].slice(0,60)")
             log("etisalat links:", links)
-            for u, st, b in caught[:25]:
-                log(f"etisalat xhr {st} {u[:160]} :: {b[:220]}")
+            cats = [l for l in links if "/category/" in (l or "")]
+            for c in cats[:3]:
+                caught.clear()
+                await page.goto(c, wait_until="networkidle", timeout=90000)
+                await asyncio.sleep(8)
+                log("etisalat cat", c, (await page.evaluate("document.body.innerText"))[300:700].replace("\n", " | "))
+                for u, st, b in caught:
+                    if "i18n" in u or "contentItems" in u:
+                        continue
+                    log(f"etisalat xhr {st} {u[:200]} :: {b[:600]}")
         except Exception as e:
             log("etisalat error", str(e)[:150])
         finally:
