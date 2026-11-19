@@ -167,6 +167,7 @@ class DB:
             await self._ingest(items)
 
     async def _ingest(self, items: list):
+        items = sorted(items, key=lambda x: (x.get("store", ""), x.get("pid", "")))  # ترتيب ثابت يمنع الـ deadlock
         # الكوبونات اللي ظاهرة على المنتجات ("وفّر 10% بالكوبون") بتتسجل في جدول الكوبونات
         coupons = []
         for it in items:

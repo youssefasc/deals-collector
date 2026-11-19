@@ -56,7 +56,7 @@ const SB='https://unwzvhdwxmlmknvgvrhp.supabase.co/rest/v1/';
 const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3p2aGR3eG1sbWtudmd2cmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwMjQ5MzUsImV4cCI6MjExMDYwMDkzNX0.g_500nSaAP5lF6N69ofsvozust1BpzbBU7kZXtooAyM';
 const H={apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'};
 const STORES=[['amazon','أمازون مصر'],['amazon_resale','أمازون مستعمل'],['amazon_now','أمازون ناو'],['noon','نون مصر'],['noon_minutes','نون مينتس'],['jumia','جوميا'],['talabat','طلبات مارت'],['breadfast','بريد فاست'],['carrefour','كارفور'],['btech','B.TECH'],['2b','2B'],['vodafone','فودافون'],['etisalat','اتصالات'],['orange','أورنج'],['we','وي WE']];
-const LIVE=['amazon','amazon_resale','amazon_now'];
+const LIVE=['amazon','amazon_resale','amazon_now','noon','jumia'];
 const CATS=[['mobiles','موبايلات'],['tablets','تابلت'],['laptops','لابتوب'],['tvs','شاشات'],['audio','سماعات'],['smartwatches','ساعات ذكية'],['appliances','أجهزة منزلية'],['electronics','إلكترونيات'],['gaming','ألعاب فيديو'],['grocery','سوبرماركت'],['beauty','جمال'],['health','صحة ونظافة'],['home','البيت والمطبخ'],['fashion','موضة'],['kids','أطفال'],['sports','رياضة'],['computer_acc','إكسسوارات كمبيوتر'],['mobile_acc','إكسسوارات موبايل'],['auto','عربيات'],['books_office','كتب ومكتب'],['other','أخرى']];
 const LOOPS=[['deals','صفحة عروض أمازون (Today\'s Deals)'],['hot','الفحص السريع لصفحة العروض (كل 10 ثواني)'],['search','بحث الخصومات (سوبرماركت، منظفات، أطفال، جمال)'],['nodes','كل منتجات الأقسام (موبايلات، لابتوب، شاشات، بقالة…)'],['top','الفحص المتكرر للأكثر مبيعاً'],['now','أمازون ناو'],['resale','أمازون مستعمل'],['coupons','جمع كوبونات أمازون (اللي ظاهرة على المنتجات)']];
 let TOKEN='';try{TOKEN=localStorage.getItem('adm')||''}catch(e){}
@@ -144,7 +144,7 @@ content(){
 },
 async stores(){
   const o=SITE.stores||{};let ccfg={};try{ccfg=(await rpc('admin_stats')).config||{}}catch(e){}
-  const HAS=['amazon','amazon_now','amazon_resale'];
+  const HAS=['amazon','amazon_now','amazon_resale','noon','jumia'];
   const all=STORES.map(([k,n])=>[k,n,false]).concat(Object.keys(o).filter(k=>!STORES.some(s=>s[0]===k)).map(k=>[k,o[k].name||k,true]));
   const dom=k=>(o[k]&&o[k].domain)||({amazon:'amazon.eg',amazon_resale:'amazon.eg',amazon_now:'amazon.eg',noon:'noon.com',noon_minutes:'noon.com',jumia:'jumia.com.eg',talabat:'talabat.com',breadfast:'breadfast.com',carrefour:'carrefouregypt.com',btech:'btech.com','2b':'2b.com.eg',vodafone:'vodafone.com.eg',etisalat:'eand.com.eg',orange:'orange.eg',we:'te.eg'})[k]||'';
   const logo=k=>(o[k]&&o[k].logo)||`https://www.google.com/s2/favicons?domain=${dom(k)}&sz=128`;
