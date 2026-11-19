@@ -290,18 +290,24 @@ def _talabat_item(x, cat):
             "src_category": "talabat", "in_stock": not x.get("oos")}
 
 
+TALABAT_VENDOR = os.environ.get("TALABAT_VENDOR", "/egypt/grocery/619848/maadi-old-el-nahda-street")
+TALABAT_AID = os.environ.get("TALABAT_AID", "9838")   # منطقة التوصيل (المعادي) — بتفتح كل منتجات طلبات مارت بالصفحات
+
+
 async def talabat_loop(ctx, db, log, stats, gate, cfg):
     page = await _new_page(ctx)
     try:
-        await page.goto(f"{TALABAT_BASE}/egypt/talabat-mart/categories", wait_until="domcontentloaded", timeout=40000)
-        log("talabat home:", (await page.title())[:60])
+        await page.goto(f"{TALABAT_BASE}{TALABAT_VENDOR}?aid={TALABAT_AID}", wait_until="domcontentloaded", timeout=40000)
+        log("talabat store:", (await page.title())[:70])
     except Exception as e:
         log("talabat home error", str(e)[:100])
+    vparts = len(TALABAT_VENDOR.strip("/").split("/"))
     while True:
         await gate("talabat")
         t0, total = time.time(), 0
-        res = await page.evaluate(TALABAT_JS, "/egypt/talabat-mart/categories")
-        queue = [l for l in (res.get("links") or []) if len(l.strip("/").split("/")) == 4]
+        res = await page.evaluate(TALABAT_JS, f"{TALABAT_VENDOR}?aid={TALABAT_AID}")
+        norm = lambda l: l.split("?")[0]
+        queue = [norm(l) for l in (res.get("links") or []) if len(norm(l).strip("/").split("/")) == vparts + 2]
         if not queue:
             log("talabat: no categories found", res.get("err"), res.get("title"))
         seen_pages = set()
@@ -309,25 +315,31 @@ async def talabat_loop(ctx, db, log, stats, gate, cfg):
             sub = queue.pop(0)
             if sub in seen_pages:
                 continue
-            await gate("talabat")
             seen_pages.add(sub)
-            stats["requests"] += 1
-            r = await page.evaluate(TALABAT_JS, sub)
-            if r.get("err"):
-                stats["errors"] += 1
-                log("talabat error", sub, r.get("err"))
-                await asyncio.sleep(5)
-                continue
-            # كل صفحة قسم فرعي فيها لينكات باقي الأقسام الفرعية اللي جنبه
-            for l in (r.get("links") or []):
-                if len(l.strip("/").split("/")) == 4 and l not in seen_pages:
-                    queue.append(l)
-            top = sub.strip("/").split("/")[2]
+            top = sub.strip("/").split("/")[vparts]
             cat = TALABAT_CAT.get(top, "grocery")
-            items = [i for i in (_talabat_item(x, cat) for x in r.get("items") or []) if i]
-            total += len(items)
-            stats["items"] += len(items)
-            await db.ingest(items)
-            await asyncio.sleep(cfg("talabat_delay", 1.5) + random.uniform(0, 1.0))
-        log(f"talabat done: {total} products from {len(seen_pages)} pages in {int(time.time() - t0)}s")
+            seen_skus = set()
+            for pg in range(1, 60):
+                await gate("talabat")
+                stats["requests"] += 1
+                r = await page.evaluate(TALABAT_JS, f"{sub}?aid={TALABAT_AID}&page={pg}")
+                if r.get("err"):
+                    stats["errors"] += 1
+                    log("talabat error", sub, pg, r.get("err"))
+                    await asyncio.sleep(5)
+                    break
+                if pg == 1:
+                    for l in (r.get("links") or []):
+                        l = norm(l)
+                        if len(l.strip("/").split("/")) == vparts + 2 and l not in seen_pages:
+                            queue.append(l)
+                items = [i for i in (_talabat_item(x, cat) for x in r.get("items") or []) if i and i["pid"] not in seen_skus]
+                if not items:
+                    break
+                seen_skus.update(i["pid"] for i in items)
+                total += len(items)
+                stats["items"] += len(items)
+                await db.ingest(items)
+                await asyncio.sleep(cfg("talabat_delay", 1.5) + random.uniform(0, 1.0))
+        log(f"talabat done: {total} products from {len(seen_pages)} categories in {int(time.time() - t0)}s")
         await asyncio.sleep(300)
