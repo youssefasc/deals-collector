@@ -625,6 +625,9 @@ DUBAI_JS = r"""async (u) => { try {
   const out = []; let m;
   const pct = {};
   h.split('href="/shop/').slice(1).forEach(seg => { const slug = seg.split('"')[0]; const mm = seg.slice(0, 4000).split('href="/shop/')[0].match(/خصم\s*(\d+)\s*%/); if (mm) pct[slug] = +mm[1]; });
+  const spec = [...h.matchAll(/"slug":"([^"]+)"[^{}]*?"has_special_price":true/g)].map(x => x[1]).filter(x => !pct[x]);
+  for (const sl of spec.slice(0, 40)) { try { const ph = await (await fetch('/shop/' + sl)).text();
+    const mm = ph.match(/خصم\s*(\d+)\s*%/) || ph.replace(/\\"/g, '"').match(/"special_price_percent(?:age)?":"?(\d+)/); if (mm) pct[sl] = +mm[1]; } catch (e) {} }
   while ((m = re.exec(h))) { let was = +m[5]; const p = +m[6]; const d = pct[m[2]]; if (d && !(was > p)) was = Math.round(p / (1 - d / 100));
     out.push({id: m[1], slug: m[2], name: m[3], img: m[4], was, price: p, stock: m[7] === 'true'}); }
   const lp = (h.match(/"last_page":(\d+)/) || [])[1];
