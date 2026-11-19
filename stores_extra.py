@@ -244,3 +244,90 @@ async def jumia_loop(ctx, db, log, stats, gate, cfg):
                 await asyncio.sleep(cfg("jumia_delay", 2.0) + random.uniform(0, 1.0))
         log(f"jumia done: {total} products in {int(time.time() - t0)}s")
         await asyncio.sleep(60)
+
+
+# ═══════════════════ طلبات مارت ═══════════════════
+# صفحات طلبات مارت مفتوحة: كل قسم فرعي بيعرض أول 20 منتج بأسعارها جوه __NEXT_DATA__
+TALABAT_BASE = "https://www.talabat.com"
+TALABAT_CAT = {
+    "beauty": "beauty", "personal-care": "health", "pharma-wellness": "health", "cleaning-laundry": "health",
+    "household-essentials": "home", "paper-plastic": "home", "baby-corner": "kids", "electronics": "electronics",
+    "stationery-games": "books_office", "pet-care": "other",
+}
+
+TALABAT_JS = r"""async (path) => {
+  try {
+    const r = await fetch(path, {credentials: 'include'});
+    if (!r.ok) return {err: r.status};
+    const h = await r.text();
+    const m = h.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (!m) return {err: 'nodata', title: (h.match(/<title>([^<]*)/) || [])[1]};
+    const j = JSON.parse(m[1]);
+    let arr = [];
+    const walk = (v, d) => {
+      if (!v || d > 14) return;
+      if (Array.isArray(v)) { if (v[0] && v[0].dhVendorId && 'price' in v[0]) { arr = arr.concat(v); return; } v.forEach(x => walk(x, d + 1)); return; }
+      if (typeof v === 'object') for (const k in v) walk(v[k], d + 1);
+    };
+    walk(j, 0);
+    const links = [...new Set([...h.matchAll(/href="(\/egypt\/talabat-mart\/[a-z0-9-]+(?:\/[a-z0-9-]+)?)"/g)].map(x => x[1]))]
+      .filter(l => !/\/product\/|\/categories$/.test(l));
+    return {items: arr.map(p => ({sku: p.sku, title: p.title, slug: p.slug, price: p.price, was: p.originalPrice,
+                                  img: p.image, oos: p.inStock === false})), links};
+  } catch (e) { return {err: String(e)}; }
+}"""
+
+
+def _talabat_item(x, cat):
+    price, was = x.get("price"), x.get("was")
+    if not x.get("sku") or not price:
+        return None
+    was = was if was and was > price else None
+    pct = round((1 - price / was) * 100) if was else None
+    return {"store": "talabat", "pid": str(x["sku"]), "title": (x.get("title") or "")[:300], "image": x.get("img"),
+            "url": f"{TALABAT_BASE}/egypt/talabat-mart/product/{x.get('slug') or 'p'}/s/{x['sku']}",
+            "price": price, "list_price": was, "discount_pct": pct, "category": cat,
+            "src_category": "talabat", "in_stock": not x.get("oos")}
+
+
+async def talabat_loop(ctx, db, log, stats, gate, cfg):
+    page = await _new_page(ctx)
+    try:
+        await page.goto(f"{TALABAT_BASE}/egypt/talabat-mart/categories", wait_until="domcontentloaded", timeout=40000)
+        log("talabat home:", (await page.title())[:60])
+    except Exception as e:
+        log("talabat home error", str(e)[:100])
+    while True:
+        await gate("talabat")
+        t0, total = time.time(), 0
+        res = await page.evaluate(TALABAT_JS, "/egypt/talabat-mart/categories")
+        queue = [l for l in (res.get("links") or []) if len(l.strip("/").split("/")) == 4]
+        if not queue:
+            log("talabat: no categories found", res.get("err"), res.get("title"))
+        seen_pages = set()
+        while queue:
+            sub = queue.pop(0)
+            if sub in seen_pages:
+                continue
+            await gate("talabat")
+            seen_pages.add(sub)
+            stats["requests"] += 1
+            r = await page.evaluate(TALABAT_JS, sub)
+            if r.get("err"):
+                stats["errors"] += 1
+                log("talabat error", sub, r.get("err"))
+                await asyncio.sleep(5)
+                continue
+            # كل صفحة قسم فرعي فيها لينكات باقي الأقسام الفرعية اللي جنبه
+            for l in (r.get("links") or []):
+                if len(l.strip("/").split("/")) == 4 and l not in seen_pages:
+                    queue.append(l)
+            top = sub.strip("/").split("/")[2]
+            cat = TALABAT_CAT.get(top, "grocery")
+            items = [i for i in (_talabat_item(x, cat) for x in r.get("items") or []) if i]
+            total += len(items)
+            stats["items"] += len(items)
+            await db.ingest(items)
+            await asyncio.sleep(cfg("talabat_delay", 1.5) + random.uniform(0, 1.0))
+        log(f"talabat done: {total} products from {len(seen_pages)} pages in {int(time.time() - t0)}s")
+        await asyncio.sleep(300)

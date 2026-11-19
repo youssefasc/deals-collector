@@ -74,7 +74,7 @@ def cfg(k, default):
     return default if v is None else v
 
 
-_STORE_OF = {"noon": "noon", "jumia": "jumia", "coupons": "amazon", "deals": "amazon", "hot": "amazon", "search": "amazon", "nodes": "amazon", "top": "amazon",
+_STORE_OF = {"talabat": "talabat", "noon": "noon", "jumia": "jumia", "coupons": "amazon", "deals": "amazon", "hot": "amazon", "search": "amazon", "nodes": "amazon", "top": "amazon",
              "now": "amazon_now", "resale": "amazon_resale"}
 
 
@@ -741,7 +741,8 @@ async def main():
         loops = [search_loop(amz, db), top_loop(amz, db), amazon_now_loop(amz, db), resale_loop(amz, db),
                  stats_loop(db), refresh_loop(amz), config_loop(db),
                  stores_extra.noon_loop(ctx2, db, log, stats, gate, cfg),
-                 stores_extra.jumia_loop(ctx2, db, log, stats, gate, cfg)]
+                 stores_extra.jumia_loop(ctx2, db, log, stats, gate, cfg),
+                 stores_extra.talabat_loop(ctx2, db, log, stats, gate, cfg)]
         if amz.feeds:
             loops += [hot_loop(amz, db), sweep_loop(amz, db), coupon_loop(amz, db)]
         else:
