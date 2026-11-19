@@ -444,7 +444,7 @@ async def twob_loop(ctx, db, log, stats, gate, cfg):
         data = ((res or {}).get("data") or {}).get("products") or {}
         if res.get("err") or not data:
             stats["errors"] += 1
-            back = min(7200, max(900, back * 2))
+            back = min(43200, max(21600, back * 2))   # ٦ ساعات ← ١٢ ساعة — من غير تكرار طلبات بلا جدوى
             log("2b error", pg, res.get("err") or str(res.get("errors"))[:80], f"— retry same page in {back // 60} min")
             if res.get("errors") and size > 100:
                 size = max(100, size // 2)   # لو الصفحة كبيرة زيادة عن المسموح نصغّرها
@@ -750,3 +750,66 @@ async def dubai_loop(ctx, db, log, stats, gate, cfg):
                 await asyncio.sleep(cfg("dubai_delay", 2.0) + random.uniform(0, 1.0))
         log(f"dubaiphone done: {total} products from {len(done)} categories in {int(time.time() - t0)}s")
         await asyncio.sleep(600)
+
+
+
+# ═══════════════════ Feed Adapter عام — لأي فيد منتجات رسمي (JSON / CSV) ═══════════════════
+# الإعداد من collector config:  "feeds": [{"store": "breadfast", "url": "...", "format": "json"|"csv",
+#   "items_path": "data.products", "map": {"pid": "id", "title": "name", "price": "price", "list_price": "old_price",
+#   "image": "image", "url": "link", "category": "category", "in_stock": "available"}, "every_min": 60, "headers": {...}}]
+def _dig(o, path):
+    for k in [p for p in (path or "").split(".") if p]:
+        o = o.get(k) if isinstance(o, dict) else (o[int(k)] if isinstance(o, list) and k.isdigit() and int(k) < len(o) else None)
+    return o
+
+
+def _num(v):
+    try:
+        return float(str(v).replace(",", "").replace("EGP", "").replace("ج.م", "").strip())
+    except Exception:
+        return None
+
+
+async def feed_loop(db, log, stats, gate, cfg, http):
+    import csv, io
+    last = {}
+    while True:
+        feeds = cfg("feeds", []) or []
+        for f in feeds:
+            store, url = f.get("store"), f.get("url")
+            if not store or not url or cfg("off_store_" + store, False):
+                continue
+            if time.time() - last.get(url, 0) < 60 * float(f.get("every_min", 60)):
+                continue
+            last[url] = time.time()
+            try:
+                r = await http.get(url, headers=f.get("headers") or {}, timeout=60, follow_redirects=True)
+                if r.status_code != 200:
+                    log(f"feed {store} error {r.status_code}")
+                    continue
+                if f.get("format") == "csv":
+                    rows = list(csv.DictReader(io.StringIO(r.text)))
+                else:
+                    rows = _dig(r.json(), f.get("items_path")) or []
+                m = f.get("map") or {}
+                items = []
+                for x in rows:
+                    g = lambda k: _dig(x, m.get(k, k))
+                    pid, price = g("pid"), _num(g("price"))
+                    if not pid or not price:
+                        continue
+                    was = _num(g("list_price"))
+                    was = was if was and was > price else None
+                    stock = g("in_stock")
+                    items.append({"store": store, "pid": str(pid), "title": str(g("title") or "")[:300],
+                                  "image": g("image"), "url": g("url"), "price": price, "list_price": was,
+                                  "discount_pct": round((1 - price / was) * 100) if was else None,
+                                  "category": f.get("category") or g("category") or "other", "src_category": "feed:" + store,
+                                  "in_stock": stock not in (False, 0, "0", "false", "out of stock", "OUT_OF_STOCK")})
+                for i in range(0, len(items), 200):
+                    await db.ingest(items[i:i + 200])
+                stats["items"] += len(items)
+                log(f"feed {store} done: {len(items)} products from {len(rows)} rows")
+            except Exception as e:
+                log(f"feed {store} error", str(e)[:100])
+        await asyncio.sleep(60)
