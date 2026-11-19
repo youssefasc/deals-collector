@@ -926,3 +926,135 @@ async def feed_loop(db, log, stats, gate, cfg, http):
             except Exception as e:
                 log(f"{store} error feed", str(e)[:100])
         await asyncio.sleep(60)
+
+
+# ═══════════════════ فودافون شوب — متصفح حقيقي بيقرا الصفحة زي الزائر (DOM) ═══════════════════
+VODA_JS = r"""() => {
+  const num = s => { const m = String(s || '').replace(/[٬,]/g, '').match(/\d+(?:\.\d+)?/); return m ? +m[0] : null; };
+  const out = [];
+  for (const a of document.querySelectorAll('a[aria-label^="View details for"]')) {
+    let card = a;
+    for (let i = 0; i < 8 && card; i++) { if (card.querySelector('[class*="sale-price"],[aria-label="sale-price"]')) break; card = card.parentElement; }
+    if (!card) continue;
+    const pick = sel => { const e = card.querySelector(sel); return e ? num(e.innerText || e.textContent) : null; };
+    const sale = pick('[class*="sale-price"],[aria-label="sale-price"]');
+    const def = pick('[class*="default-price"],[aria-label="default-price"]');
+    const img = card.querySelector('img');
+    out.push({name: a.getAttribute('aria-label').replace(/^View details for\s*/, ''), href: a.getAttribute('href'),
+              price: sale || def, was: sale && def && def > sale ? def : null, img: img ? (img.currentSrc || img.src) : null,
+              oos: /نفذ|غير متوفر|out of stock/i.test(card.innerText)});
+  }
+  const total = (document.body.innerText.match(/(\d[\d,]*)\s*من نتائج/) || [])[1];
+  return {items: out, total: total ? +total.replace(/,/g, '') : null};
+}"""
+
+
+async def vodafone_loop(ctx, db, log, stats, gate, cfg):
+    while True:
+        await gate("vodafone")
+        t0, seen, page = time.time(), {}, None
+        try:
+            page = await _new_page(ctx)
+            for pg in range(0, int(cfg("vodafone_pages", 80))):
+                await page.goto(f"https://eshop.vodafone.com.eg/ar/list?page={pg}", wait_until="domcontentloaded", timeout=60000)
+                try:
+                    await page.wait_for_selector('a[aria-label^="View details for"]', timeout=25000)
+                except Exception:
+                    log("vodafone error", pg, "no products rendered", (await page.title())[:40])
+                    break
+                for _ in range(6):   # لو الصفحة بتحمّل بالتمرير
+                    await page.mouse.wheel(0, 4000)
+                    await asyncio.sleep(0.8)
+                res = await page.evaluate(VODA_JS)
+                new = [x for x in res["items"] if x["href"] and x["href"] not in seen and x["price"]]
+                if pg == 0:
+                    log(f"vodafone: catalog {res.get('total')}, first page {len(res['items'])} cards, sample:", (res["items"][:1] or [None])[0])
+                if not new:
+                    break
+                items = []
+                for x in new:
+                    seen[x["href"]] = 1
+                    pid = x["href"].rstrip("/").split("/")[-1].split("?")[0]
+                    items.append({"store": "vodafone", "pid": pid, "title": x["name"][:300], "image": x["img"],
+                                  "url": "https://eshop.vodafone.com.eg" + x["href"] if x["href"].startswith("/") else x["href"],
+                                  "price": x["price"], "list_price": x["was"],
+                                  "discount_pct": round((1 - x["price"] / x["was"]) * 100) if x["was"] else None,
+                                  "category": _guess_cat(x["name"]), "src_category": "vodafone", "in_stock": not x["oos"]})
+                stats["items"] += len(items)
+                await db.ingest(items)
+                await asyncio.sleep(cfg("vodafone_delay", 4) + random.uniform(0, 2))
+            log(f"vodafone done: {len(seen)} products in {int(time.time() - t0)}s")
+        except Exception as e:
+            log("vodafone error", str(e)[:120])
+        finally:
+            if page:
+                await page.close()   # بنقفل الصفحة بعد كل دورة عشان الذاكرة
+        await asyncio.sleep(cfg("vodafone_every", 10800))
+
+
+# ═══════════════════ WE شوب — متصفح حقيقي بيقرا الصفحة زي الزائر (DOM) ═══════════════════
+WE_JS = r"""() => {
+  // كل كارت منتج فيه سعر بالشكل "12345 EGP" — بنطلع للأب اللي فيه صورة واسم
+  const out = []; const used = new Set();
+  const leaves = [...document.querySelectorAll('body *')].filter(e => e.children.length === 0 && /^\s*[\d,]+(?:\.\d+)?\s*EGP\s*$/.test(e.textContent));
+  for (const p of leaves) {
+    let card = p;
+    for (let i = 0; i < 6 && card; i++) { card = card.parentElement; if (card && card.querySelector('img')) break; }
+    if (!card || used.has(card)) continue;
+    used.add(card);
+    const lines = card.innerText.split('\n').map(s => s.trim()).filter(Boolean);
+    const prices = lines.filter(l => /^[\d,]+(?:\.\d+)?\s*EGP$/.test(l)).map(l => +l.replace(/[^\d.]/g, ''));
+    const name = lines.find(l => !/EGP|^compare$|^مقارنة$|^\d+$/i.test(l) && l.length > 3);
+    const img = card.querySelector('img');
+    if (name && prices.length) out.push({name, price: Math.min(...prices), was: prices.length > 1 ? Math.max(...prices) : null, img: img ? img.src : null});
+  }
+  return out;
+}"""
+
+WE_TABS = ["Mobiles", "Accessories", "Gaming", "Internet Devices", "Land line Phones"]
+
+
+async def we_loop(ctx, db, log, stats, gate, cfg):
+    while True:
+        await gate("we")
+        t0, seen, page = time.time(), set(), None
+        try:
+            page = await _new_page(ctx)
+            await page.goto("https://shop.te.eg/echannel/#/salesoffering", wait_until="domcontentloaded", timeout=60000)
+            await asyncio.sleep(8)
+            for tab in WE_TABS:
+                try:
+                    await page.get_by_text(tab, exact=True).first.click(timeout=10000)
+                except Exception as e:
+                    log("we error tab", tab, str(e)[:60]); continue
+                await asyncio.sleep(5)
+                for pg in range(40):
+                    res = await page.evaluate(WE_JS)
+                    new = [x for x in res if x["name"] not in seen]
+                    if tab == WE_TABS[0] and pg == 0:
+                        log(f"we: {tab} first view {len(res)} cards, sample:", (res[:1] or [None])[0])
+                    items = []
+                    for x in new:
+                        seen.add(x["name"])
+                        pid = re.sub(r"[^a-z0-9]+", "-", x["name"].lower()).strip("-")[:80]
+                        items.append({"store": "we", "pid": pid, "title": x["name"][:300], "image": x["img"],
+                                      "url": "https://shop.te.eg/echannel/#/salesoffering", "price": x["price"],
+                                      "list_price": x["was"] if x["was"] and x["was"] > x["price"] else None,
+                                      "discount_pct": round((1 - x["price"] / x["was"]) * 100) if x["was"] and x["was"] > x["price"] else None,
+                                      "category": _guess_cat(x["name"]) if tab != "Mobiles" else "mobiles", "src_category": "we", "in_stock": True})
+                    if items:
+                        stats["items"] += len(items)
+                        await db.ingest(items)
+                    # الصفحة اللي بعدها (Pagination بتاعة Ant Design) لو موجودة
+                    nxt = page.locator("li.ant-pagination-next:not(.ant-pagination-disabled)")
+                    if await nxt.count() == 0 or not new:
+                        break
+                    await nxt.first.click()
+                    await asyncio.sleep(cfg("we_delay", 4) + random.uniform(0, 2))
+            log(f"we done: {len(seen)} products in {int(time.time() - t0)}s")
+        except Exception as e:
+            log("we error", str(e)[:120])
+        finally:
+            if page:
+                await page.close()
+        await asyncio.sleep(cfg("we_every", 10800))
