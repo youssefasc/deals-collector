@@ -546,3 +546,128 @@ async def carrefour_loop(ctx, db, log, stats, gate, cfg):
                 await asyncio.sleep(cfg("carrefour_delay", 2.0) + random.uniform(0, 1.0))
         log(f"carrefour done: {total} products from {len(done)} categories in {int(time.time() - t0)}s")
         await asyncio.sleep(600)
+
+
+# ═══════════════════ دريم 2000 (متجر Shopify — products.json العام) ═══════════════════
+def _guess_cat(title: str, ptype: str = "") -> str:
+    t = f"{title} {ptype}".lower()
+    for k, c in [("تابلت", "tablets"), ("ايباد", "tablets"), ("ipad", "tablets"), ("لابتوب", "laptops"), ("laptop", "laptops"),
+                 ("شاشة", "tvs"), ("تلفزيون", "tvs"), ("tv", "tvs"), ("ساعة", "smartwatches"), ("watch", "smartwatches"),
+                 ("سماع", "audio"), ("headphone", "audio"), ("earbud", "audio"), ("سبيكر", "audio"),
+                 ("جراب", "mobile_acc"), ("شاحن", "mobile_acc"), ("كابل", "mobile_acc"), ("باور بانك", "mobile_acc"),
+                 ("موبايل", "mobiles"), ("هاتف", "mobiles"), ("iphone", "mobiles"), ("ايفون", "mobiles"),
+                 ("galaxy", "mobiles"), ("جالكسي", "mobiles"), ("بلايستيشن", "gaming"), ("playstation", "gaming")]:
+        if k in t:
+            return c
+    return "electronics"
+
+
+async def dream_loop(ctx, db, log, stats, gate, cfg):
+    page = await _new_page(ctx)
+    try:
+        await page.goto("https://dream2000.com/", wait_until="domcontentloaded", timeout=40000)
+        log("dream2000 home:", (await page.title())[:60])
+    except Exception as e:
+        log("dream2000 home error", str(e)[:100])
+    js = """async (p) => { try { const r = await fetch('/products.json?limit=250&page=' + p);
+        if (!r.ok) return {err: r.status}; return await r.json(); } catch (e) { return {err: String(e)}; } }"""
+    while True:
+        await gate("dream2000")
+        t0, total = time.time(), 0
+        for pg in range(1, 200):
+            await gate("dream2000")
+            stats["requests"] += 1
+            res = await page.evaluate(js, pg)
+            if res.get("err"):
+                stats["errors"] += 1
+                log("dream2000 error", pg, res.get("err"))
+                break
+            prods = res.get("products") or []
+            if not prods:
+                break
+            items = []
+            for p in prods:
+                vs = p.get("variants") or []
+                v = next((x for x in vs if x.get("available")), vs[0] if vs else None)
+                if not v:
+                    continue
+                price = float(v.get("price") or 0)
+                was = float(v.get("compare_at_price") or 0) or None
+                if not price:
+                    continue
+                was = was if was and was > price else None
+                img = ((p.get("images") or [{}])[0] or {}).get("src")
+                items.append({"store": "dream2000", "pid": str(p["id"]), "title": (p.get("title") or "")[:300],
+                              "image": img, "url": f"https://dream2000.com/products/{p.get('handle')}",
+                              "price": price, "list_price": was,
+                              "discount_pct": round((1 - price / was) * 100) if was else None,
+                              "category": _guess_cat(p.get("title") or "", p.get("product_type") or ""),
+                              "src_category": "dream2000", "in_stock": any(x.get("available") for x in vs)})
+            total += len(items)
+            stats["items"] += len(items)
+            await db.ingest(items)
+            await asyncio.sleep(cfg("dream_delay", 2.0) + random.uniform(0, 1.0))
+        log(f"dream2000 done: {total} products in {int(time.time() - t0)}s")
+        await asyncio.sleep(600)
+
+
+# ═══════════════════ دبي فون (صفحات الأقسام فيها بيانات المنتجات جاهزة) ═══════════════════
+DUBAI_JS = r"""async (u) => { try {
+  const r = await fetch(u); if (!r.ok) return {err: r.status};
+  const h = (await r.text()).replace(/\\"/g, '"');
+  const re = /\{"id":(\d+),"slug":"([^"]+)","name":"((?:[^"\\]|\\.)*)"[^{}]*?"base_image":"([^"]*)","price":\{"amount":([\d.]+)[^{}]*\},"selling_price":\{"amount":([\d.]+)[^{}]*\}[\s\S]*?"in_stock":(true|false)/g;
+  const out = []; let m;
+  while ((m = re.exec(h))) out.push({id: m[1], slug: m[2], name: m[3], img: m[4], was: +m[5], price: +m[6], stock: m[7] === 'true'});
+  const lp = (h.match(/"last_page":(\d+)/) || [])[1];
+  const cats = [...new Set([...h.matchAll(/href="(\/category\/[a-z0-9-]+)"/g)].map(x => x[1]))];
+  return {items: out, pages: lp ? +lp : 1, cats};
+} catch (e) { return {err: String(e)}; } }"""
+
+
+async def dubai_loop(ctx, db, log, stats, gate, cfg):
+    page = await _new_page(ctx)
+    try:
+        await page.goto("https://www.dubaiphone.net/", wait_until="domcontentloaded", timeout=40000)
+        log("dubaiphone home:", (await page.title())[:60])
+    except Exception as e:
+        log("dubaiphone home error", str(e)[:100])
+    while True:
+        await gate("dubaiphone")
+        t0, total = time.time(), 0
+        home = await page.evaluate(DUBAI_JS, "/")
+        queue = list(home.get("cats") or [])
+        done, seen = set(), set()
+        while queue and len(done) < 200:
+            c = queue.pop(0)
+            if c in done:
+                continue
+            done.add(c)
+            pg, pages = 1, 1
+            while pg <= min(pages, 60):
+                await gate("dubaiphone")
+                stats["requests"] += 1
+                res = await page.evaluate(DUBAI_JS, f"{c}?page={pg}")
+                if res.get("err"):
+                    stats["errors"] += 1
+                    log("dubaiphone error", c, pg, res.get("err"))
+                    break
+                if pg == 1:
+                    queue += [x for x in (res.get("cats") or []) if x not in done]
+                pages = res.get("pages") or 1
+                items = []
+                for x in res.get("items") or []:
+                    if x["id"] in seen or not x["price"]:
+                        continue
+                    seen.add(x["id"])
+                    was = x["was"] if x["was"] > x["price"] else None
+                    items.append({"store": "dubaiphone", "pid": x["id"], "title": x["name"][:300], "image": x["img"] or None,
+                                  "url": f"https://www.dubaiphone.net/shop/{x['slug']}", "price": x["price"],
+                                  "list_price": was, "discount_pct": round((1 - x["price"] / was) * 100) if was else None,
+                                  "category": _guess_cat(x["name"]), "src_category": "dubaiphone", "in_stock": x["stock"]})
+                total += len(items)
+                stats["items"] += len(items)
+                await db.ingest(items)
+                pg += 1
+                await asyncio.sleep(cfg("dubai_delay", 2.0) + random.uniform(0, 1.0))
+        log(f"dubaiphone done: {total} products from {len(done)} categories in {int(time.time() - t0)}s")
+        await asyncio.sleep(600)
