@@ -310,9 +310,12 @@ async def talabat_loop(ctx, db, log, stats, gate, cfg):
         queue = [norm(l) for l in (res.get("links") or []) if len(norm(l).strip("/").split("/")) == vparts + 2]
         if not queue:
             # طلبات رافض (حماية) — منكررش المحاولة كتير: نستنى ساعتين ونجرب تاني بهدوء
-            log("talabat: blocked/no categories", res.get("err"), "— next try in 2h")
-            await asyncio.sleep(7200)
+            # Exponential backoff: ٣٠ د ← ساعة ← ٢ ← ٤ ← ٨ ← ١٢ ساعة (أقصى حد) — من غير ما نضغط على الموقع
+            _tb = min(43200, max(1800, (globals().get("_TAL_BACK") or 900) * 2)); globals()["_TAL_BACK"] = _tb
+            log("talabat error blocked", res.get("err"), f"— next try in {_tb // 60} min")
+            await asyncio.sleep(_tb)
             continue
+        globals()["_TAL_BACK"] = 0
         seen_pages = set()
         while queue:
             sub = queue.pop(0)

@@ -165,6 +165,11 @@ class DB:
             DB._sem = asyncio.Semaphore(int(os.environ.get("DB_CONCURRENCY", "2")))
         async with DB._sem:
             await self._ingest(items)
+        by = {}
+        for it in items:
+            by[it.get("store", "?")] = by.get(it.get("store", "?"), 0) + 1
+        for s, n in by.items():
+            health(s, True, n)
 
     async def _ingest(self, items: list):
         items = sorted(items, key=lambda x: (x.get("store", ""), x.get("pid", "")))  # ترتيب ثابت يمنع الـ deadlock
@@ -790,6 +795,30 @@ async def sweep_feeds(amz: Amazon, db: DB, feeds):
             await db.set_state("last_sweep:" + feed, {"products": total, "seconds": int(time.time() - t0)})
 
 
+HEALTH = {}   # حالة كل جامع: آخر نجاح، آخر خطأ، عدد المنتجات، الحالة
+
+
+def health(store: str, ok: bool = True, n: int = 0, err: str = None, backoff_until: float = None):
+    h = HEALTH.setdefault(store, {"ok": 0, "fail": 0, "items": 0})
+    now = time.time()
+    if ok:
+        h["ok"] += 1; h["items"] += n; h["last_ok"] = now; h["status"] = "running"
+    else:
+        h["fail"] += 1; h["last_err"] = now; h["err"] = str(err)[:120]
+        h["status"] = "blocked" if str(err) in ("403", "429") or "blocked" in str(err) else "error"
+    if backoff_until:
+        h["status"] = "backoff"; h["retry_at"] = backoff_until
+
+
+def store_log(*a):
+    """لوج المتاجر — وكمان بيسجل الأخطاء في لوحة الحالة."""
+    log(*a)
+    msg = " ".join(str(x) for x in a)
+    mm = re.match(r"(\w+?)(?: home)? error\b.*?(\d{3}|blocked|nodata)?\s*$", msg)
+    if mm:
+        health(mm.group(1).replace("twob", "2b"), ok=False, err=mm.group(2) or msg[-60:])
+
+
 async def stats_loop(db: DB):
     while True:
         await asyncio.sleep(60)
@@ -797,6 +826,7 @@ async def stats_loop(db: DB):
         log(f"stats: {stats['requests']} req, {stats['items']} items read, {stats['inserted']} new, "
             f"{stats['changed']} price changes, {stats['errors']} errors ({stats['requests'] / mins:.0f} req/min)")
         await db.set_state("stats", {k: v for k, v in stats.items()})
+        await db.set_state("health", {**HEALTH, "_at": time.time()})
 
 
 async def main():
@@ -834,12 +864,12 @@ async def main():
         main_on = os.environ.get("AMAZON_MAIN", "1") != "0"   # أمازون العادي (أتقل حاجة على قاعدة البيانات)
         loops = ([search_loop(amz, db), top_loop(amz, db)] if main_on else []) + [amazon_now_loop(amz, db), resale_loop(amz, db),
                  stats_loop(db), refresh_loop(amz), config_loop(db),
-                 stores_extra.talabat_loop(ctx2, db, log, stats, gate, cfg),
-                 stores_extra.twob_loop(ctx2, db, log, stats, gate, cfg),
-                 stores_extra.btech_loop(ctx2, db, log, stats, gate, cfg),
-                 stores_extra.carrefour_loop(ctx2, db, log, stats, gate, cfg),
-                 stores_extra.dream_loop(ctx2, db, log, stats, gate, cfg),
-                 stores_extra.dubai_loop(ctx2, db, log, stats, gate, cfg)]
+                 stores_extra.talabat_loop(ctx2, db, store_log, stats, gate, cfg),
+                 stores_extra.twob_loop(ctx2, db, store_log, stats, gate, cfg),
+                 stores_extra.btech_loop(ctx2, db, store_log, stats, gate, cfg),
+                 stores_extra.carrefour_loop(ctx2, db, store_log, stats, gate, cfg),
+                 stores_extra.dream_loop(ctx2, db, store_log, stats, gate, cfg),
+                 stores_extra.dubai_loop(ctx2, db, store_log, stats, gate, cfg)]
         if amz.feeds and main_on:
             loops += [hot_loop(amz, db), sweep_loop(amz, db), coupon_loop(amz, db)]
         if not main_on:
