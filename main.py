@@ -536,8 +536,39 @@ async def top_loop(amz, db: "DB"):
         await asyncio.sleep(5)
 
 
+SET_LOC_JS = r"""async (city) => {
+  try {
+    const el = document.getElementById('nav-global-location-data-modal-action');
+    const md = el ? JSON.parse(el.getAttribute('data-a-modal')) : {};
+    const hd = Object.assign({'Content-Type': 'application/json'}, md.ajaxHeaders || {});
+    if (md.url) await fetch(md.url, {headers: md.ajaxHeaders || {}});
+    const bodies = [
+      {locationType: 'CITY', city: city, cityName: city, deviceType: 'web', storeContext: 'generic', pageType: 'Search', actionSource: 'glow'},
+      {locationType: 'CITY_WITH_DISTRICT', city: city, district: city, deviceType: 'web', storeContext: 'generic', pageType: 'Search', actionSource: 'glow'}];
+    const out = [];
+    for (const b of bodies) {
+      const r = await fetch('/portal-migration/hz/glow/address-change?actionSource=glow', {method: 'POST', headers: hd, body: JSON.stringify(b)});
+      const t = await r.text(); out.push(r.status + ':' + t.slice(0, 120));
+      if (r.ok && /isValidAddress"?\s*:\s*1|"successful"?\s*:\s*1|true/.test(t)) break;
+    }
+    const h = await (await fetch('/?language=ar_AE')).text();
+    return {out, loc: ((h.match(/glow-ingress-line2[^>]*>([^<]*)/) || [])[1] || '').trim()};
+  } catch (e) { return {err: String(e)}; }
+}"""
+
+
+async def set_location(amz):
+    """أمازون ناو بيظهر بس لو عنوان التوصيل جوه منطقته — بنختار القاهرة الجديدة."""
+    try:
+        res = await amz.page.evaluate(SET_LOC_JS, os.environ.get("AMZ_CITY", "New Cairo City"))
+        log("set location:", res)
+    except Exception as e:
+        log("set location error", repr(e)[:120])
+
+
 async def amazon_now_loop(amz, db: "DB"):
     """أمازون ناو = منتجات البائع A31TYDXOWA7X1E (توصيل خلال دقايق)."""
+    await set_location(amz)
     while True:
         await gate("now")
         t0, total, page = time.time(), 0, 1
@@ -831,6 +862,7 @@ async def refresh_loop(amz: Amazon):
         try:
             await amz.page.goto("https://www.amazon.eg/", wait_until="domcontentloaded", timeout=45000)
             log("session refreshed")
+            await set_location(amz)
         except Exception as e:
             log("refresh error", str(e)[:100])
 
