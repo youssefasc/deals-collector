@@ -960,7 +960,9 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
             await page.goto("https://eshop.vodafone.com.eg/ar/list", wait_until="domcontentloaded", timeout=60000)
             await asyncio.sleep(6)
             cats = await page.evaluate("""() => [...new Set([...document.querySelectorAll('a[href*="category="]')].map(a => a.getAttribute('href')))]""")
-            urls = ["/ar/list"] + [c for c in cats if c and "category=" in c][:60]
+            guess = ["mobile", "tablet", "accessories", "wearables", "laptop", "tv", "gaming", "audio", "smart-home",
+                     "home-appliances", "routers", "headphones", "speakers", "chargers", "power-banks", "cases", "smartwatch"]
+            urls = ["/ar/list"] + [c for c in cats if c and "category=" in c][:60] + [f"/ar/list?category={g}" for g in guess]
             log(f"vodafone: {len(urls) - 1} category pages")
             for cu in urls:
               if cu != "/ar/list":
@@ -987,7 +989,7 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
                       pass
                   res = await page.evaluate(VODA_JS)
                   if rnd == 0:
-                      log(f"vodafone: catalog {res.get('total')}, first view {len(res['items'])} cards")
+                      log(f"vodafone: {cu} → catalog {res.get('total')}, first view {len(res['items'])} cards, total so far {len(seen)}")
                   new = [x for x in res["items"] if x["name"] and x["name"] not in seen and x["price"]]
                   items = []
                   for x in new:
