@@ -940,10 +940,13 @@ VODA_JS = r"""() => {
     const pick = sel => { const e = card.querySelector(sel); return e ? num(e.innerText || e.textContent) : null; };
     const sale = pick('[class*="sale-price"],[aria-label="sale-price"]');
     const def = pick('[class*="default-price"],[aria-label="default-price"]');
-    const img = [...card.querySelectorAll('img')].find(i => !/wishlist|icon|warranty|badge|logo|\.svg/i.test(i.currentSrc || i.src || ''));
+    const BADIMG = /wishlist|icon|warranty|badge|logo|sold%20by|sold by|best\.png|wifi\.png|warning|insurance|\/content\/images-1|group-\d+|placeholder|loading|\.svg|data:image/i;
+    const srcOf = i => [i.getAttribute('data-src'), i.getAttribute('data-lazy-src'), i.getAttribute('data-original'), (i.getAttribute('srcset') || i.getAttribute('data-srcset') || '').split(',').pop().trim().split(' ')[0], i.currentSrc, i.src].find(u => u && !BADIMG.test(u));
+    const img0 = [...card.querySelectorAll('img')].map(i => ({u: srcOf(i), a: (i.naturalWidth || i.width || 0) * (i.naturalHeight || i.height || 0)})).filter(x => x.u).sort((a, b) => b.a - a.a)[0];
+    const img = img0 ? {src: new URL(img0.u, location.href).href} : null;
     const link = [...card.querySelectorAll('a[href]')].map(x => x.getAttribute('href')).find(h => h && h !== '#' && !/^javascript/.test(h));
     out.push({name: a.getAttribute('aria-label').replace(/^View details for\s*/, ''), href: link || null,
-              price: sale || def, was: sale && def && def > sale ? def : null, img: img ? (img.currentSrc || img.src) : null,
+              price: sale || def, was: sale && def && def > sale ? def : null, img: img ? img.src : null,
               oos: /نفذ|غير متوفر|out of stock/i.test(card.innerText)});
   }
   const total = (document.body.innerText.match(/(\d[\d,]*)\s*من نتائج/) || [])[1];
@@ -1065,9 +1068,12 @@ TE_JS = r"""() => {
     const h = card.querySelector('h1,h2,h3,h4,h5,h6,[class*="title"],[class*="name"]');
     let name = h && h.innerText.trim();
     if (!name || BAD.test(name) || /\d{3,}\s*(EGP|EPG)/i.test(name)) name = lines.find(l => !/\d{3,}\s*(EGP|EPG)/i.test(l) && !BAD.test(l) && l.length > 3);
-    const img = card.querySelector('img');
+    const BADIMG = /wishlist|icon|warranty|badge|logo|sold%20by|sold by|best\.png|wifi\.png|warning|insurance|\/content\/images-1|group-\d+|placeholder|loading|\.svg|data:image/i;
+    const srcOf = i => [i.getAttribute('data-src'), i.getAttribute('data-lazy-src'), i.getAttribute('data-original'), (i.getAttribute('srcset') || i.getAttribute('data-srcset') || '').split(',').pop().trim().split(' ')[0], i.currentSrc, i.src].find(u => u && !BADIMG.test(u));
+    const img0 = [...card.querySelectorAll('img')].map(i => ({u: srcOf(i), a: (i.naturalWidth || i.width || 0) * (i.naturalHeight || i.height || 0)})).filter(x => x.u).sort((a, b) => b.a - a.a)[0];
+    const img = img0 ? {src: new URL(img0.u, location.href).href} : null;
     if (name && prices.length) out.push({name, url: a.href.split('?')[0], price: Math.min(...prices), was: prices.length > 1 ? Math.max(...prices) : null,
-      img: img ? (img.currentSrc || img.src) : null, oos: /out of stock|غير متوفر|نفذ/i.test(t)});
+      img: img ? img.src : null, oos: /out of stock|غير متوفر|نفذ/i.test(t)});
   }
   const cats = [...new Set([...document.querySelectorAll('a[href*="/personal/devices/"]')].map(a => a.href.split('?')[0].split('#')[0]))];
   return {out, cats};
@@ -1109,6 +1115,15 @@ async def we_loop(ctx, db, log, stats, gate, cfg):
                         continue
                     seen[pid] = 1
                     was = x["was"] if x["was"] and x["was"] > x["price"] else None
+                    if not x["img"]:  # صورة المنتج من صفحته الرسمية على te.eg (og:image)
+                        try:
+                            r = await ctx.request.get(x["url"], timeout=30000)
+                            m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)', await r.text())
+                            if m and not re.search(r"group-\d+|logo", m.group(1)):
+                                x["img"] = m.group(1) if m.group(1).startswith("http") else TE_BASE + m.group(1)
+                            await asyncio.sleep(1.5)
+                        except Exception:
+                            pass
                     cat = "mobiles" if "mobile" in catname else _guess_cat(x["name"] + " router" if "router" in catname else x["name"])
                     items.append({"store": "we", "pid": pid, "title": x["name"][:300], "image": x["img"], "url": x["url"],
                                   "price": x["price"], "list_price": was, "discount_pct": round((1 - x["price"] / was) * 100) if was else None,
