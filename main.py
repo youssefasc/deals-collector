@@ -744,6 +744,7 @@ async def main():
         log("missing SUPABASE_KEY / INGEST_TOKEN")
         return
     db = DB()
+    DB._sem = None  # كل تشغيل له event loop جديد
     async with async_playwright() as p:
         browser = await p.chromium.launch(args=["--no-sandbox"])
         ctx = await browser.new_context(locale="ar-EG", user_agent=(
@@ -784,7 +785,13 @@ async def main():
             loops += [hot_loop(amz, db), sweep_loop(amz, db), coupon_loop(amz, db)]
         else:
             log("deals feed not found — running search sources only")
-        await asyncio.gather(*loops)
+        async def guard(coro, name):
+            # لو جامع واحد وقع، ميوقعش الباقيين — بيتسجل الخطأ وبس
+            try:
+                await coro
+            except Exception as e:
+                log(f"loop {name} died:", repr(e)[:200])
+        await asyncio.gather(*[guard(c, getattr(c, '__name__', '?')) for c in loops])
 
 
 async def refresh_loop(amz: Amazon):
