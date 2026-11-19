@@ -280,7 +280,37 @@ class Amazon:
             else:
                 log("no data feed found on", src, "| title:", (await self.page.title())[:60])
 
+    async def heal(self, err: str):
+        """لو صفحة أمازون وقعت (Target crashed / closed) بنفتح صفحة جديدة بدل ما كل الطلبات تفشل للأبد."""
+        if not re.search(r"crash|closed|Target", err or "", re.I):
+            return
+        if getattr(self, "_healing", False):
+            await asyncio.sleep(5)
+            return
+        self._healing = True
+        try:
+            log("amazon page crashed — opening a new page")
+            ctx = self.page.context
+            try:
+                await self.page.close()
+            except Exception:
+                pass
+            self.page = await ctx.new_page()
+            await self.page.goto("https://www.amazon.eg/", wait_until="domcontentloaded", timeout=45000)
+            await asyncio.sleep(2)
+        except Exception as e:
+            log("heal failed", str(e)[:100])
+        finally:
+            self._healing = False
+
     async def _eval(self, url):
+        try:
+            return await self._eval_raw(url)
+        except Exception as e:
+            await self.heal(str(e))
+            raise
+
+    async def _eval_raw(self, url):
         return await self.page.evaluate("""async (u) => {
             try { const r = await fetch(u, {credentials: 'include', headers: {'accept': 'application/json'}});
                   if (!r.ok) return {err: r.status}; return await r.json(); }
@@ -431,6 +461,7 @@ async def search_source_loop(amz, db: "DB", alias: str, cat: str, node: bool = F
                 except Exception as e:
                     stats["errors"] += 1
                     log("search error", str(e)[:100])
+                    await amz.heal(str(e))
                     await asyncio.sleep(10)
                     break
                 if res.get("err") or res.get("blocked"):
@@ -460,6 +491,7 @@ async def fetch_search(amz, url):
     except Exception as e:
         stats["errors"] += 1
         log("search error", str(e)[:100])
+        await amz.heal(str(e))
         return None
     if res.get("err") or res.get("blocked"):
         stats["errors"] += 1
