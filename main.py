@@ -866,21 +866,6 @@ async def main():
             "Chrome/120.0.0.0 Safari/537.36"))
         await ctx2.route(re.compile(r".*\.(png|jpe?g|gif|webp|svg|woff2?|ttf|mp4|css)(\?.*)?$"), lambda r: r.abort())
         main_on = os.environ.get("AMAZON_MAIN", "1") != "0"   # أمازون العادي (أتقل حاجة على قاعدة البيانات)
-        async def probe():
-            for u in ["https://eshop.vodafone.com.eg/ar/list", "https://eshop.vodafone.com.eg/ar/", "https://web.vodafone.com.eg/ar/eshop/homePage/home",
-                      "https://www.orange.eg/ar/", "https://www.orange.eg/ar/shop", "https://shop.orange.eg/",
-                      "https://www.eand.com.eg/ar", "https://eshop.eand.com.eg/", "https://www.etisalat.eg/",
-                      "https://te.eg/", "https://te.eg/personal/mobile/we-mobile", "https://shop.te.eg/"]:
-                try:
-                    resp = await ctx2.request.get(u, timeout=30000)
-                    t = await resp.text()
-                    m = re.search(r"<title>([^<]{0,60})", t)
-                    r = f"{resp.status} {len(t)} " + (m.group(1) if m else t[:60]).replace("\n", " ")
-                except Exception as e:
-                    r = "EXC " + str(e)[:80]
-                log("PROBE3", u, "→", r)
-                await asyncio.sleep(2)
-        asyncio.create_task(probe())
         loops = ([search_loop(amz, db), top_loop(amz, db)] if main_on else []) + [amazon_now_loop(amz, db), resale_loop(amz, db),
                  stats_loop(db), refresh_loop(amz), config_loop(db),
                  stores_extra.talabat_loop(ctx2, db, store_log, stats, gate, cfg),

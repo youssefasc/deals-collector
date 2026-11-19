@@ -831,12 +831,30 @@ async def feed_loop(db, log, stats, gate, cfg, http):
                 continue
             last[url] = time.time()
             try:
-                r = await http.get(url, headers=f.get("headers") or {}, timeout=60, follow_redirects=True)
-                if r.status_code != 200:
-                    log(f"{store} error feed {r.status_code}")
-                    continue
                 fmt = f.get("format", "json")
-                if fmt == "csv":
+                if "{page}" in url and fmt == "json":
+                    # فيد بصفحات: بنلف لحد ما الصفحة ترجع فاضية
+                    rows, pg = [], int(f.get("first_page", 1))
+                    while pg < int(f.get("max_pages", 200)):
+                        rr = await http.get(url.replace("{page}", str(pg)), headers=f.get("headers") or {}, timeout=60, follow_redirects=True)
+                        if rr.status_code != 200:
+                            log(f"{store} error feed {rr.status_code}")
+                            break
+                        chunk = _dig(rr.json(), f.get("items_path")) or []
+                        if not chunk:
+                            break
+                        rows += chunk
+                        pg += 1
+                        await asyncio.sleep(float(f.get("page_delay", 2)))
+                    r = None
+                else:
+                    r = await http.get(url, headers=f.get("headers") or {}, timeout=60, follow_redirects=True)
+                    if r.status_code != 200:
+                        log(f"{store} error feed {r.status_code}")
+                        continue
+                if r is None:
+                    pass
+                elif fmt == "csv":
                     rows = list(csv.DictReader(io.StringIO(r.text)))
                 elif fmt == "xml":
                     rows = _xml_rows(r.text)
@@ -859,7 +877,7 @@ async def feed_loop(db, log, stats, gate, cfg, http):
                         await asyncio.sleep(float(f.get("page_delay", 2)))
                     m0 = {"pid": "sku", "title": "name", "price": "price", "list_price": "list_price", "image": "image", "url": "url", "in_stock": "availability"}
                     f = {**f, "map": {**m0, **(f.get("map") or {})}}
-                else:
+                elif r is not None:
                     rows = _dig(r.json(), f.get("items_path")) or []
                 m = f.get("map") or {}
                 items, region_rows, cheapest = [], [], {}
@@ -883,10 +901,14 @@ async def feed_loop(db, log, stats, gate, cfg, http):
                         prev = cheapest.get(str(pid))
                         if prev and prev["price"] <= price:
                             continue
-                    items.append({"store": store, "pid": str(pid), "title": str(g("title") or "")[:300],
-                                  "image": g("image"), "url": g("url"), "price": price, "list_price": was,
+                    u = g("url")
+                    if u and f.get("url_prefix") and not str(u).startswith("http"):
+                        u = f["url_prefix"] + str(u)
+                    title = str(g("title") or "")[:300]
+                    items.append({"store": store, "pid": str(pid), "title": title,
+                                  "image": g("image"), "url": u, "price": price, "list_price": was,
                                   "discount_pct": round((1 - price / was) * 100) if was else None,
-                                  "category": f.get("category") or g("category") or "other", "src_category": "feed:" + store,
+                                  "category": f.get("category") or (g("category") if m.get("category") else None) or _guess_cat(title), "src_category": "feed:" + store,
                                   "in_stock": stock not in (False, 0, "0", "false", "out of stock", "OUT_OF_STOCK")})
                 if region_rows:   # لما يبقى فيه مناطق: نخلي نسخة واحدة لكل منتج (الأرخص)
                     for it in items:
