@@ -202,6 +202,10 @@ class DB:
             stats["errors"] += 1
             log("DB exception", str(e)[:150])
 
+    async def get_state(self, k: str):
+        r = await self.client.post(f"{SUPABASE_URL}/rest/v1/rpc/collector_get_state", json={"token": INGEST_TOKEN, "k": k})
+        return r.json() if r.status_code == 200 else None
+
     async def set_state(self, k: str, v):
         try:
             await self.client.post(f"{SUPABASE_URL}/rest/v1/rpc/collector_set_state",

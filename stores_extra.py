@@ -389,7 +389,7 @@ async def talabat_loop(ctx, db, log, stats, gate, cfg):
 
 
 # ═══════════════════ 2B (Magento — واجهة GraphQL العامة بتاعة الموقع) ═══════════════════
-TWOB_Q = """query($p:Int!){products(filter:{price:{from:"1"}},pageSize:100,currentPage:$p){total_count
+TWOB_Q = """query($p:Int!,$n:Int!){products(filter:{price:{from:"1"}},pageSize:$n,currentPage:$p){total_count
  items{sku name url_key small_image{url} stock_status
   price_range{minimum_price{regular_price{value} final_price{value}}} categories{url_path}}}}"""
 
@@ -421,52 +421,60 @@ async def _polite(evaluate, log, name, pg):
 
 
 async def twob_loop(ctx, db, log, stats, gate, cfg):
+    """2B بيسمح بطلب واحد وبعدين بيرفض لو الطلبات قريبة من بعض — فبنبعت صفحة كبيرة واحدة كل فترة،
+    ونحفظ آخر صفحة وصلنالها في القاعدة (Resume) عشان نكمل منها حتى بعد إعادة التشغيل."""
     page = await _new_page(ctx)
-    try:
-        await page.goto("https://2b.com.eg/ar/", wait_until="domcontentloaded", timeout=40000)
-        log("2b home:", (await page.title())[:60])
-    except Exception as e:
-        log("2b home error", str(e)[:100])
-    js = """async ([q, p]) => { try { const r = await fetch('/graphql', {method: 'POST',
-        headers: {'Content-Type': 'application/json', Store: 'ar'}, body: JSON.stringify({query: q, variables: {p}})});
+    js = """async ([q, p, n]) => { try { const r = await fetch('/graphql', {method: 'POST',
+        headers: {'Content-Type': 'application/json', Store: 'ar'}, body: JSON.stringify({query: q, variables: {p, n}})});
         if (!r.ok) return {err: r.status}; return await r.json(); } catch (e) { return {err: String(e)}; } }"""
+    st = {}
+    try:
+        st = (await db.get_state("twob_progress")) or {}
+    except Exception:
+        st = {}
+    pg, size, back = int(st.get("page") or 1), int(st.get("size") or 300), 0
     while True:
         await gate("2b")
-        t0, total, pg = time.time(), 0, 1
-        while pg <= 100:
-            await gate("2b")
-            stats["requests"] += 1
-            res = await _polite(lambda: page.evaluate(js, [TWOB_Q, pg]), log, "2b", pg)
-            data = ((res or {}).get("data") or {}).get("products") or {}
-            if res.get("err") or not data:
-                stats["errors"] += 1
-                log("2b error", pg, res.get("err") or res.get("errors"))
-                break
-            items = []
-            for x in data.get("items") or []:
-                pr = ((x.get("price_range") or {}).get("minimum_price") or {})
-                price = (pr.get("final_price") or {}).get("value")
-                was = (pr.get("regular_price") or {}).get("value")
-                if not price or not x.get("sku"):
-                    continue
-                was = was if was and was > price else None
-                paths = " ".join(c.get("url_path") or "" for c in (x.get("categories") or []))
-                items.append({"store": "2b", "pid": x["sku"], "title": (x.get("name") or "")[:300],
-                              "image": (x.get("small_image") or {}).get("url"),
-                              "url": f"https://2b.com.eg/ar/{x.get('url_key')}.html",
-                              "price": price, "list_price": was,
-                              "discount_pct": round((1 - price / was) * 100) if was else None,
-                              "category": _cat_from_path(paths), "src_category": "2b",
-                              "in_stock": x.get("stock_status") == "IN_STOCK"})
-            total += len(items)
-            stats["items"] += len(items)
-            await db.ingest(items)
-            if pg * 100 >= (data.get("total_count") or 0):
-                break
-            pg += 1
-            await asyncio.sleep(cfg("2b_delay", 2.0) + random.uniform(0, 1.0))
-        log(f"2b done: {total} products in {int(time.time() - t0)}s")
-        await asyncio.sleep(600)
+        try:
+            await page.goto("https://2b.com.eg/ar/", wait_until="domcontentloaded", timeout=40000)
+        except Exception as e:
+            log("2b home error", str(e)[:100])
+        stats["requests"] += 1
+        res = await page.evaluate(js, [TWOB_Q, pg, size])
+        data = ((res or {}).get("data") or {}).get("products") or {}
+        if res.get("err") or not data:
+            stats["errors"] += 1
+            back = min(7200, max(900, back * 2))
+            log("2b error", pg, res.get("err") or str(res.get("errors"))[:80], f"— retry same page in {back // 60} min")
+            if res.get("errors") and size > 100:
+                size = max(100, size // 2)   # لو الصفحة كبيرة زيادة عن المسموح نصغّرها
+            await asyncio.sleep(back)
+            continue
+        back = 0
+        items = []
+        for x in data.get("items") or []:
+            pr = ((x.get("price_range") or {}).get("minimum_price") or {})
+            price = (pr.get("final_price") or {}).get("value")
+            was = (pr.get("regular_price") or {}).get("value")
+            if not price or not x.get("sku"):
+                continue
+            was = was if was and was > price else None
+            paths = " ".join(c.get("url_path") or "" for c in (x.get("categories") or []))
+            items.append({"store": "2b", "pid": x["sku"], "title": (x.get("name") or "")[:300],
+                          "image": (x.get("small_image") or {}).get("url"),
+                          "url": f"https://2b.com.eg/ar/{x.get('url_key')}.html",
+                          "price": price, "list_price": was,
+                          "discount_pct": round((1 - price / was) * 100) if was else None,
+                          "category": _cat_from_path(paths), "src_category": "2b",
+                          "in_stock": x.get("stock_status") == "IN_STOCK"})
+        stats["items"] += len(items)
+        await db.ingest(items)
+        total = data.get("total_count") or 0
+        pages = max(1, -(-total // size))
+        log(f"2b page {pg}/{pages}: {len(items)} products (catalog {total})")
+        pg = 1 if pg >= pages else pg + 1
+        await db.set_state("twob_progress", {"page": pg, "size": size, "pages": pages, "total": total, "at": time.time()})
+        await asyncio.sleep(cfg("2b_gap", 600) + random.uniform(0, 60))
 
 
 # ═══════════════════ B.TECH (صفحات الأقسام فيها بيانات المنتجات جاهزة) ═══════════════════
