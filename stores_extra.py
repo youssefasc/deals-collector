@@ -1100,7 +1100,7 @@ async def we_loop(ctx, db, log, stats, gate, cfg):
                         continue
                     seen[pid] = 1
                     was = x["was"] if x["was"] and x["was"] > x["price"] else None
-                    cat = "mobiles" if "mobile" in catname else ("electronics" if "router" in catname else _guess_cat(x["name"]))
+                    cat = "mobiles" if "mobile" in catname else _guess_cat(x["name"] + " router" if "router" in catname else x["name"])
                     items.append({"store": "we", "pid": pid, "title": x["name"][:300], "image": x["img"], "url": x["url"],
                                   "price": x["price"], "list_price": was, "discount_pct": round((1 - x["price"] / was) * 100) if was else None,
                                   "category": cat, "src_category": "we:" + catname, "in_stock": not x["oos"]})
