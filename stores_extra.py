@@ -1170,6 +1170,17 @@ async def etisalat_loop(ctx, db, log, stats, gate, cfg):
             page = await _new_page(ctx)
             await page.goto(ET_BASE + "/eshop2/#/", wait_until="networkidle", timeout=90000)
             await asyncio.sleep(6)
+            if not sample_logged:
+                await page.goto(ET_BASE + "/eshop2/#/category/devices?cid=2&categoryType=Category", wait_until="networkidle", timeout=90000)
+                await asyncio.sleep(6)
+                hrefs = await page.evaluate("[...document.querySelectorAll('a[href]')].map(a=>a.getAttribute('href')).filter(h=>/product/i.test(h)).slice(0,5)")
+                if not hrefs:
+                    await page.locator("text=EGP").first.click()
+                    await asyncio.sleep(5)
+                    hrefs = [page.url]
+                log("etisalat product links:", hrefs)
+                await page.goto(ET_BASE + "/eshop2/#/", wait_until="networkidle", timeout=90000)
+                await asyncio.sleep(4)
             cids = await page.evaluate("[...new Set([...document.querySelectorAll('a[href*=\"cid=\"]')].map(a=>+(a.href.match(/cid=(\\d+)/)||[])[1]).filter(Boolean))]")
             queue, done = list(cids), set()
             while queue:
