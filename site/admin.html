@@ -242,6 +242,11 @@ async coupons(){
 async tools(){
   const s=SITE,M=s.maintenance||{};
   $('view').innerHTML=`
+  <div class="card"><h3>📥 استيراد منتجات (CSV أو JSON)</h3><p class="mute">لأي متجر مالوش جامع: ملف فيه الأعمدة <b>pid, title, price</b> (وممكن list_price, image, url, category, in_stock). نفس النظام: منع تكرار بالكود + تاريخ أسعار + حساب الخصم. لو رفعت نفس الملف تاني بأسعار جديدة بيتحدث بس.</p>
+    <div class="row"><select id="iStore" style="flex:1">${STORES.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select><input type="file" id="iFile" accept=".csv,.json,.txt"><button class="btn p" id="iGo">استيراد</button></div><p class="mute" id="iProg"></p></div>
+  <div class="card"><h3>🔌 مصادر الفيد الرسمية (Feeds)</h3><p class="mute">أي فيد منتجات رسمي (JSON / CSV / XML زي Google Merchant / Sitemap منتجات فيها JSON-LD) — الجامع بيقراه لوحده كل فترة. ضيف سطر لكل مصدر. لو الفيد فيه عمود منطقة اكتب "region" في الـ map وهيتسجل سعر كل منطقة.</p>
+    <textarea id="fJson" style="min-height:180px;direction:ltr;font-family:monospace;font-size:12px"></textarea>
+    <div class="row"><button class="btn p" id="fSave">حفظ المصادر</button><button class="btn" id="fTpl">إضافة قالب 2B / بريدفاست</button></div><p class="mute" id="fMsg"></p></div>
   <div class="card"><h3>🗑 مسح كل منتجات متجر</h3><p class="mute">بيمسح المنتجات وتاريخ أسعارها نهائياً. لو الجامع لسه شغّال على المتجر ده هيرجع يجمعه — اقفل مصدره من تاب الجامع الأول.</p>
     <div class="row"><select id="dStore" style="flex:1">${STORES.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select><button class="btn r" id="dGo">مسح الكل</button></div><p class="mute" id="dProg"></p></div>
   <div class="card"><h3>⚡ إجراءات جماعية</h3><p class="mute">اختار متجر و/أو قسم و/أو كلمة، وبعدين الإجراء.</p>
@@ -260,6 +265,19 @@ async tools(){
   <div class="card"><h3>🧹 تنضيف قاعدة البيانات</h3><p class="mute">مسح تاريخ الأسعار الأقدم من عدد أيام (لتوفير المساحة).</p>
     <div class="row"><input id="pDays" type="number" value="60" style="width:110px"><span class="mute">يوم</span><button class="btn r" id="pGo">مسح الأقدم</button></div></div>
   <div class="card"><h3>🔑 تغيير كلمة السر</h3><div class="row"><input id="npw" type="password" placeholder="كلمة السر الجديدة (8 حروف على الأقل)" style="flex:1"><button class="btn p" id="npwGo">تغيير</button></div></div>`;
+  (async()=>{try{const st=await rpc('admin_stats');window.__ccfg=st.config||{};$('fJson').value=JSON.stringify(window.__ccfg.feeds||[],null,2)}catch(e){$('fMsg').textContent='مقدرتش أقرا الإعدادات'}})();
+  $('fTpl').onclick=()=>{let a=[];try{a=JSON.parse($('fJson').value||'[]')}catch(e){}
+    a.push({store:'2b',url:'PUT_2B_FEED_URL_HERE',format:'xml',every_min:60,map:{pid:'id',title:'title',price:'sale_price',list_price:'price',image:'image_link',url:'link',in_stock:'availability'}});
+    a.push({store:'breadfast',url:'PUT_BREADFAST_FEED_URL_HERE',format:'csv',every_min:60,map:{pid:'sku',title:'name',price:'price',list_price:'old_price',image:'image',url:'link',category:'category',in_stock:'in_stock',region:'area'}});
+    $('fJson').value=JSON.stringify(a,null,2)};
+  $('fSave').onclick=async()=>{let a;try{a=JSON.parse($('fJson').value||'[]');if(!Array.isArray(a))throw 0}catch(e){$('fMsg').textContent='❌ الصيغة غلط (لازم JSON array)';return}
+    a=a.filter(f=>f.url&&!/PUT_/.test(f.url));const nc=Object.assign({},window.__ccfg||{},{feeds:a});await rpc('admin_set_collector',{cfg:nc});window.__ccfg=nc;$('fMsg').textContent='✅ اتحفظ '+a.length+' مصدر — الجامع هيقراهم خلال دقيقة (القوالب اللي لسه فيها PUT_ اتشالت)'};
+  $('iGo').onclick=async()=>{const f=$('iFile').files[0];if(!f){toast('اختار ملف');return}const store=$('iStore').value;const txt=await f.text();let rows=[];
+    try{if(/^\s*[\[{]/.test(txt)){const j=JSON.parse(txt);rows=Array.isArray(j)?j:(j.products||j.items||[])}else{const lines=txt.split(/\r?\n/).filter(Boolean);const sp=l=>{const o=[];let c='',q=false;for(const ch of l){if(ch=='"'){q=!q}else if(ch==','&&!q){o.push(c);c=''}else c+=ch}o.push(c);return o.map(x=>x.trim())};const hd=sp(lines[0]);rows=lines.slice(1).map(l=>{const v=sp(l);const o={};hd.forEach((h,i)=>o[h]=v[i]);return o})}}catch(e){$('iProg').textContent='❌ مقدرتش أقرا الملف';return}
+    const num=v=>{const n=parseFloat(String(v??'').replace(/[^0-9.]/g,''));return isNaN(n)?null:n};
+    const items=rows.map(r=>{const p=num(r.price),w=num(r.list_price);if(!r.pid||!p)return null;const was=w&&w>p?w:null;return{store,pid:String(r.pid),title:String(r.title||'').slice(0,300),image:r.image||null,url:r.url||null,price:p,list_price:was,discount_pct:was?Math.round((1-p/was)*100):null,category:r.category||'other',src_category:'import:'+store,in_stock:!/^(0|false|no|out)/i.test(String(r.in_stock??'1'))}}).filter(Boolean);
+    let done=0;for(let i=0;i<items.length;i+=500){await rpc('admin_import_products',{items:items.slice(i,i+500)});done+=Math.min(500,items.length-i);$('iProg').textContent='بيستورد… '+done+' / '+items.length}
+    $('iProg').textContent='✅ اتستورد '+done+' منتج من '+rows.length+' سطر (السطور الناقصة pid أو price اتجاهلت)'};
   $('dGo').onclick=async()=>{const k=$('dStore').value,n=$('dStore').selectedOptions[0].text;
     if(prompt(`لتأكيد مسح كل منتجات "${n}" نهائياً اكتب اسم المتجر:`)!==n)return toast('اتلغى');
     let total=0,c;do{c=await rpc('admin_delete_store',{st:k});total+=c;$('dProg').textContent='اتمسح '+total+' منتج…'}while(c>0);toast('اتمسح '+total+' منتج ✅')};

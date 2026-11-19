@@ -770,6 +770,54 @@ def _num(v):
         return None
 
 
+def _xml_rows(text):
+    """Google Merchant / RSS / أي XML فيه <item> أو <entry> أو <product> — كل عنصر بيتحول لـ dict (من غير namespace)."""
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(text)
+    strip = lambda t: t.split("}", 1)[-1]
+    rows = []
+    for el in root.iter():
+        if strip(el.tag) in ("item", "entry", "product", "offer"):
+            d = {}
+            for c in el:
+                k = strip(c.tag)
+                v = (c.text or "").strip() or c.attrib.get("href", "")
+                if k not in d:
+                    d[k] = v
+            if d:
+                rows.append(d)
+    return rows
+
+
+def _jsonld_product(html):
+    """schema.org Product من صفحة منتج عامة (JSON-LD)."""
+    for m in re.finditer(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', html, re.S | re.I):
+        try:
+            j = json.loads(m.group(1).strip())
+        except Exception:
+            continue
+        stack = j if isinstance(j, list) else [j]
+        while stack:
+            o = stack.pop()
+            if isinstance(o, dict):
+                if "@graph" in o:
+                    stack.extend(o["@graph"]); continue
+                t = o.get("@type")
+                if t == "Product" or (isinstance(t, list) and "Product" in t):
+                    off = o.get("offers") or {}
+                    if isinstance(off, list):
+                        off = off[0] if off else {}
+                    if off.get("@type") == "AggregateOffer":
+                        off = {**off, "price": off.get("lowPrice")}
+                    img = o.get("image")
+                    return {"sku": o.get("sku") or o.get("productID") or o.get("mpn"), "name": o.get("name"),
+                            "price": off.get("price"), "list_price": (off.get("priceSpecification") or {}).get("price") if isinstance(off.get("priceSpecification"), dict) else None,
+                            "image": img[0] if isinstance(img, list) else (img.get("url") if isinstance(img, dict) else img),
+                            "url": o.get("url") or off.get("url"),
+                            "availability": str(off.get("availability") or "")}
+    return None
+
+
 async def feed_loop(db, log, stats, gate, cfg, http):
     import csv, io
     last = {}
@@ -785,14 +833,36 @@ async def feed_loop(db, log, stats, gate, cfg, http):
             try:
                 r = await http.get(url, headers=f.get("headers") or {}, timeout=60, follow_redirects=True)
                 if r.status_code != 200:
-                    log(f"feed {store} error {r.status_code}")
+                    log(f"{store} error feed {r.status_code}")
                     continue
-                if f.get("format") == "csv":
+                fmt = f.get("format", "json")
+                if fmt == "csv":
                     rows = list(csv.DictReader(io.StringIO(r.text)))
+                elif fmt == "xml":
+                    rows = _xml_rows(r.text)
+                elif fmt == "jsonld_pages":
+                    # الـurl هنا sitemap أو قايمة روابط منتجات عامة — بنقرا Product Schema من كل صفحة
+                    links = re.findall(r"<loc>([^<]+)</loc>", r.text) or [l.strip() for l in r.text.splitlines() if l.startswith("http")]
+                    pat = f.get("link_pattern")
+                    links = [l for l in links if not pat or re.search(pat, l)][: int(f.get("max_pages", 300))]
+                    rows = []
+                    for l in links:
+                        try:
+                            pr = await http.get(l, headers=f.get("headers") or {}, timeout=40, follow_redirects=True)
+                            p = _jsonld_product(pr.text) if pr.status_code == 200 else None
+                            if p:
+                                p.setdefault("url", l); p["url"] = p["url"] or l
+                                p["sku"] = p["sku"] or l
+                                rows.append(p)
+                        except Exception:
+                            pass
+                        await asyncio.sleep(float(f.get("page_delay", 2)))
+                    m0 = {"pid": "sku", "title": "name", "price": "price", "list_price": "list_price", "image": "image", "url": "url", "in_stock": "availability"}
+                    f = {**f, "map": {**m0, **(f.get("map") or {})}}
                 else:
                     rows = _dig(r.json(), f.get("items_path")) or []
                 m = f.get("map") or {}
-                items = []
+                items, region_rows, cheapest = [], [], {}
                 for x in rows:
                     g = lambda k: _dig(x, m.get(k, k))
                     pid, price = g("pid"), _num(g("price"))
@@ -801,15 +871,34 @@ async def feed_loop(db, log, stats, gate, cfg, http):
                     was = _num(g("list_price"))
                     was = was if was and was > price else None
                     stock = g("in_stock")
+                    if isinstance(stock, str) and "OutOfStock" in stock:
+                        stock = False
+                    reg = g("region") if m.get("region") else None
+                    if reg:   # أسعار حسب المنطقة: المنتج مرة واحدة (أرخص منطقة) + سعر كل منطقة في جدول منفصل
+                        region_rows.append({"product_id": f"{store}:{pid}", "region": str(reg), "price": price,
+                                            "list_price": was if (was := _num(g("list_price"))) and was > price else None,
+                                            "in_stock": stock not in (False, 0, "0", "false")})
+                        prev = cheapest.get(str(pid))
+                        if prev and prev["price"] <= price:
+                            continue
                     items.append({"store": store, "pid": str(pid), "title": str(g("title") or "")[:300],
                                   "image": g("image"), "url": g("url"), "price": price, "list_price": was,
                                   "discount_pct": round((1 - price / was) * 100) if was else None,
                                   "category": f.get("category") or g("category") or "other", "src_category": "feed:" + store,
                                   "in_stock": stock not in (False, 0, "0", "false", "out of stock", "OUT_OF_STOCK")})
+                if region_rows:   # لما يبقى فيه مناطق: نخلي نسخة واحدة لكل منتج (الأرخص)
+                    for it in items:
+                        p = cheapest.get(it["pid"])
+                        if not p or it["price"] < p["price"]:
+                            cheapest[it["pid"]] = it
+                    items = list(cheapest.values())
+                    for i in range(0, len(region_rows), 500):
+                        await db.client.post((os.environ.get('SUPABASE_URL') or 'https://unwzvhdwxmlmknvgvrhp.supabase.co').rstrip('/') + '/rest/v1/rpc/ingest_region_prices',
+                                             json={"token": os.environ.get("INGEST_TOKEN"), "rows": region_rows[i:i + 500]})
                 for i in range(0, len(items), 200):
                     await db.ingest(items[i:i + 200])
                 stats["items"] += len(items)
-                log(f"feed {store} done: {len(items)} products from {len(rows)} rows")
+                log(f"feed {store} done: {len(items)} products from {len(rows)} rows" + (f", {len(region_rows)} region prices" if region_rows else ""))
             except Exception as e:
-                log(f"feed {store} error", str(e)[:100])
+                log(f"{store} error feed", str(e)[:100])
         await asyncio.sleep(60)

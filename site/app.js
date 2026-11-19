@@ -55,7 +55,9 @@ const stale=k=>{const t=HOME&&HOME.lastseen&&HOME.lastseen[k];return t&&Date.now
 /* ---------- home ---------- */
 async function getHome(){
   const r=await fetch('/api/home');if(!r.ok)throw 0;const h=await r.json();if(!h||!h.hot)throw 0;
-  HOME=h;if(h.config)Object.assign(SITE,h.config);ls.set('home_v2',h);return h;
+  HOME=h;if(h.config)Object.assign(SITE,h.config);
+  try{const rows=await q('site_config?select=key,value');rows.forEach(r=>{SITE[r.key]=r.value;h.config=h.config||{};h.config[r.key]=r.value})}catch(e){}
+  ls.set('home_v2',h);return h;
 }
 function home(){setNav('home');document.body.classList.remove('pp-open');clearInterval(timer);
   const app=$('app');const s=SITE;
