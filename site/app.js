@@ -66,6 +66,7 @@ function home(){setNav('home');document.body.classList.remove('pp-open');clearIn
   <section class="storebox" id="stores"><div class="sec-h"><div><h2>🏪 تسوّق حسب المتجر</h2><p>اختار متجرك وشوف كل عروضه</p></div><a href="#/deals">كل المتاجر ←</a></div><div class="stores" id="storeGrid"></div></section>
   <nav class="quick">
    <a class="main" href="#/deals"><i>⚡</i>أحدث المنتجات</a>
+   <a href="#/collections"><i>🔥</i>عروض نوفمبر</a>
    <a href="#stores"><i>🏪</i>اختار المتجر</a>
    <a href="#/deals?type=drop"><i>📉</i>نزل سعره دلوقتي</a>
    <a href="#/coupons"><i>🎟</i>الكوبونات</a>
@@ -246,6 +247,14 @@ async function coupons(){
 function catsPage(){setNav('cats');clearInterval(timer);document.body.classList.remove('pp-open');
   $('app').innerHTML=`<div class="fhead"><h1>🗂 <span>الأقسام</span></h1><p>اختار القسم اللي يهمك</p></div><div class="catgrid">${visibleCats().slice(1).map(([k,i,n])=>`<a href="#/deals?cat=${k}"><i>${i}</i><b>${n}</b></a>`).join('')}</div>`;
   document.title='الأقسام — عروض متتفوتش';scrollTo(0,0)}
+const COLS=[['top100','🏆 أفضل 100 عرض','أقوى العروض دلوقتي حسب قوة اللقطة'],['save','💰 أكبر توفير بالجنيه','الفرق الأكبر بين السعر قبل وبعد'],['pct','٪ أعلى نسبة خصم','خصومات 30% وأكتر على منتجات حقيقية'],['bundles','🎁 اشتري واحصل / باكدجات','عروض الهدية والقطعتين والباكدجات'],['lowest','⭐ أقل سعر في تاريخه','السعر دلوقتي هو الأقل من ساعة ما بدأنا نتابعه'],['drops','📉 نزل سعره فعلاً','سعره نزل عن آخر سعر سجلناه في آخر أسبوع'],['stockup','📦 يستاهل التخزين','منظفات وبقالة وحفاضات ومناديل بخصم 15% وأكتر'],['inflated','⚠️ خصم مشكوك فيه','السعر كان أقل قبل كده — الخصم متضخم، خلي بالك']];
+let COLD=null;
+async function collections(){setNav('cols');clearInterval(timer);document.body.classList.remove('pp-open');const app=$('app');
+  const cur=(location.hash.split('?k=')[1])||'top100';const meta=COLS.find(c=>c[0]===cur)||COLS[0];
+  app.innerHTML=`<div class="fhead"><h1>🔥 <span>عروض نوفمبر</span></h1><p>مجموعات بتتحدث تلقائياً كل نص ساعة من كل المتاجر</p></div><div class="bar"><div class="chips">${COLS.map(([k,t])=>`<a class="chip ${k===meta[0]?'on':''}" href="#/collections?k=${k}">${t}</a>`).join('')}</div></div><p class="sub">${meta[2]}</p><section class="grid" id="grid">${skel(12)}</section>`;
+  try{if(!COLD){const r=await fetch('/api/collections');COLD=await r.json()}}catch(e){}
+  const rows=(COLD&&COLD[meta[0]])||[];$('grid').innerHTML=rows.length?rows.map(p=>card(p)).join(''):'<div class="empty">مفيش عروض في المجموعة دي دلوقتي</div>';
+  document.title=meta[1]+' — عروض متتفوتش';scrollTo(0,0)}
 /* ---------- misc ---------- */
 function toast(t){document.querySelectorAll('.toast').forEach(x=>x.remove());const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.append(d);setTimeout(()=>d.remove(),2500)}
 const AFF_TAG='3rodmattfwt4-21';
@@ -266,6 +275,7 @@ function route(){const hsh=location.hash;
   if(SITE.maintenance&&SITE.maintenance.on){$('app').innerHTML=`<div class="empty" style="padding:80px 16px;font-size:18px">🛠 ${esc(SITE.maintenance.text||'الموقع تحت الصيانة — راجعين قريب جداً')}</div>`;return}
   if(hsh.startsWith('#/coupons'))return coupons();
   if(hsh.startsWith('#/cats'))return catsPage();
+  if(hsh.startsWith('#/collections'))return collections();
   const m=hsh.match(/^#\/p\/(.+)/);if(m)return product(decodeURIComponent(m[1]));
   if(hsh==='#stores'){if(!$('storeGrid'))home();setNav('stores');setTimeout(()=>$('stores').scrollIntoView({behavior:'smooth',block:'start'}),30);return}
   if(hsh.startsWith('#/deals')){const p=new URLSearchParams(hsh.split('?')[1]||'');
