@@ -75,7 +75,7 @@ def cfg(k, default):
 
 
 _STORE_OF = {"dream2000": "dream2000", "dubaiphone": "dubaiphone", "2b": "2b", "btech": "btech", "carrefour": "carrefour", "talabat": "talabat", "noon": "noon", "jumia": "jumia", "coupons": "amazon", "deals": "amazon", "hot": "amazon", "search": "amazon", "nodes": "amazon", "top": "amazon",
-             "now": "amazon_now", "resale": "amazon_resale", "vodafone": "vodafone", "we": "we"}
+             "now": "amazon_now", "resale": "amazon_resale", "vodafone": "vodafone", "we": "we", "etisalat": "etisalat"}
 
 
 async def gate(name: str):
@@ -876,6 +876,7 @@ async def main():
                  stores_extra.dubai_loop(ctx2, db, store_log, stats, gate, cfg),
                  stores_extra.vodafone_loop(ctx2, db, store_log, stats, gate, cfg),
                  stores_extra.we_loop(ctx, db, store_log, stats, gate, cfg),
+                 stores_extra.etisalat_loop(ctx, db, store_log, stats, gate, cfg),
                  stores_extra.feed_loop(db, store_log, stats, gate, cfg, httpx.AsyncClient())]
         if amz.feeds and main_on:
             loops += [hot_loop(amz, db), sweep_loop(amz, db), coupon_loop(amz, db)]

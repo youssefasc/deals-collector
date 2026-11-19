@@ -1089,3 +1089,37 @@ async def we_loop(ctx, db, log, stats, gate, cfg):
             if page:
                 await page.close()
         await asyncio.sleep(cfg("we_every", 10800))
+
+
+# ===== اتصالات e& — المتجر الرسمي eand.com.eg/eshop2 (مسموح في robots) =====
+# بنفتح المتجر في متصفح عادي ونقرا الـ JSON اللي الصفحة نفسها بتجيبه (من غير أي توقيعات أو تمويه)
+async def etisalat_loop(ctx, db, log, stats, gate, cfg):
+    while True:
+        await gate("etisalat")
+        page, caught = None, []
+        try:
+            page = await _new_page(ctx)
+
+            async def on_resp(r):
+                try:
+                    if "json" in (r.headers.get("content-type") or "") and r.request.resource_type in ("xhr", "fetch"):
+                        body = await r.text()
+                        caught.append((r.url, r.status, body))
+                except Exception:
+                    pass
+            page.on("response", on_resp)
+            r = await page.goto("https://www.eand.com.eg/eshop2/#/", wait_until="networkidle", timeout=90000)
+            log(f"etisalat: home status {r.status if r else '?'}")
+            await asyncio.sleep(12)
+            txt = (await page.evaluate("document.body.innerText"))[:400].replace("\n", " | ")
+            log("etisalat text:", txt)
+            links = await page.evaluate("[...new Set([...document.querySelectorAll('a[href]')].map(a=>a.getAttribute('href')))].slice(0,60)")
+            log("etisalat links:", links)
+            for u, st, b in caught[:25]:
+                log(f"etisalat xhr {st} {u[:160]} :: {b[:220]}")
+        except Exception as e:
+            log("etisalat error", str(e)[:150])
+        finally:
+            if page:
+                await page.close()
+        await asyncio.sleep(3 * 3600)
