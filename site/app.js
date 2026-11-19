@@ -113,6 +113,13 @@ function drawHome(h){
 
 /* ---------- feed ---------- */
 function buildQuery(off){
+  if(st.all&&st.store){ // كل منتجات المتجر (مش العروض بس)
+    let q='products?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change&store=eq.'+st.store+'&hidden=is.false&in_stock=is.true';
+    if(st.cat)q+='&category=eq.'+st.cat;
+    if(st.q)q+='&title=ilike.*'+encodeURIComponent(st.q.replace(/[*,()]/g,' '))+'*';
+    const ao={cheap:'price.asc',exp:'price.desc',pct:'discount_pct.desc.nullslast,last_change.desc'}[st.sort]||'last_change.desc';
+    return q+'&order='+ao+'&limit='+PAGE+'&offset='+off;
+  }
   let p='deals_feed?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change';
   if(st.store)p+='&store=eq.'+st.store;
   else if(st.stores&&st.stores.length)p+='&store=in.('+st.stores.join(',')+')';
@@ -140,6 +147,8 @@ async function loadPage(reset){
     if(off===0)g.innerHTML='';
     g.insertAdjacentHTML('beforeend',rows.map(p=>card(p,1)).join(''));
     st.offset=off+rows.length;st.done=rows.length<PAGE;st.first=false;
+    if(off===0&&rows.length<6&&st.store&&!st.all&&!st.q&&!st.type){st.all=true;st.autoAll=true;st.done=false;feedCtl=null;return loadPage(true);}
+    if(off===0&&st.autoAll&&rows.length)g.insertAdjacentHTML('afterbegin','<div class="notice" style="grid-column:1/-1">المتجر ده مفيهوش عروض كتير دلوقتي، فبنعرضلك كل منتجاته بأسعارها الحالية 👇</div>');
     if(off===0&&!rows.length)g.innerHTML='<div class="empty">مفيش عروض بالفلتر دا دلوقتي 🤷‍♂️<br><br><button class="chip" onclick="location.hash=\'#/deals\'">امسح الفلاتر</button></div>';
     $('sent').textContent=st.done?(st.offset?'✅ ده كل اللي موجود':''):'';
   }catch(e){if(e.name!=='AbortError')$('sent').textContent='حصلت مشكلة — اسحب لتحت تاني'}
@@ -172,7 +181,7 @@ function feed(){setNav(st.type==='drop'?'drop':'deals');document.body.classList.
   if(io)io.disconnect();io=new IntersectionObserver(es=>{if(es[0].isIntersecting&&!st.loading&&!st.done&&st.offset)loadPage(false)},{rootMargin:'900px'});io.observe($('sent'));
   timer=setInterval(liveTop,15000);
 }
-function rerender(){const y=scrollY;feed();scrollTo(0,Math.min(y,140))}
+function rerender(){st.all=false;st.autoAll=false;const y=scrollY;feed();scrollTo(0,Math.min(y,140))}
 function openSheet(){
   let bg=$('sheetBg');if(!bg){document.body.insertAdjacentHTML('beforeend','<div class="sheet-bg" id="sheetBg"></div><div class="sheet" id="sheet"></div>');bg=$('sheetBg')}
   const sh=$('sheet');const tmp={cat:st.cat,pct:st.pct,since:st.since,stores:[...(st.stores||[])]};
@@ -283,7 +292,7 @@ function route(){const hsh=location.hash;
   const m=hsh.match(/^#\/p\/(.+)/);if(m)return product(decodeURIComponent(m[1]));
   if(hsh==='#stores'){if(!$('storeGrid'))home();setNav('stores');setTimeout(()=>$('stores').scrollIntoView({behavior:'smooth',block:'start'}),30);return}
   if(hsh.startsWith('#/deals')){const p=new URLSearchParams(hsh.split('?')[1]||'');
-    Object.assign(st,{stores:(p.get('stores')||'').split(',').filter(Boolean),store:p.get('store')||'',type:p.get('type')||'',cat:p.get('cat')||'',q:p.get('q')||'',pct:0,since:0,sort:p.get('sort')||SITE.default_sort||'new'});
+    Object.assign(st,{stores:(p.get('stores')||'').split(',').filter(Boolean),store:p.get('store')||'',type:p.get('type')||'',cat:p.get('cat')||'',q:p.get('q')||'',pct:0,since:0,all:false,autoAll:false,sort:p.get('sort')||SITE.default_sort||'new'});
     $('topQ').value=st.q;feed();document.title=(st.q||'العروض')+' — عروض متتفوتش';scrollTo(0,0);return}
   home()}
 addEventListener('hashchange',route);
