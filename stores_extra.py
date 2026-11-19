@@ -521,7 +521,7 @@ async def btech_loop(ctx, db, log, stats, gate, cfg):
             while pg <= 1:
                 await gate("btech")
                 stats["requests"] += 1
-                res = await page.evaluate(BTECH_JS, path)
+                res = await _polite(lambda: page.evaluate(BTECH_JS, path), log, "btech", path)
                 if res.get("err"):
                     stats["errors"] += 1
                     log("btech error", slug, pg, res.get("err"))
@@ -940,7 +940,7 @@ VODA_JS = r"""() => {
     const pick = sel => { const e = card.querySelector(sel); return e ? num(e.innerText || e.textContent) : null; };
     const sale = pick('[class*="sale-price"],[aria-label="sale-price"]');
     const def = pick('[class*="default-price"],[aria-label="default-price"]');
-    const img = [...card.querySelectorAll('img')].find(i => !/wishlist|icon|\.svg/i.test(i.currentSrc || i.src || ''));
+    const img = [...card.querySelectorAll('img')].find(i => !/wishlist|icon|warranty|badge|logo|\.svg/i.test(i.currentSrc || i.src || ''));
     const link = [...card.querySelectorAll('a[href]')].map(x => x.getAttribute('href')).find(h => h && h !== '#' && !/^javascript/.test(h));
     out.push({name: a.getAttribute('aria-label').replace(/^View details for\s*/, ''), href: link || null,
               price: sale || def, was: sale && def && def > sale ? def : null, img: img ? (img.currentSrc || img.src) : null,
@@ -957,22 +957,28 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
         t0, seen, page = time.time(), {}, None
         try:
             page = await _new_page(ctx)
-            for pg in range(0, int(cfg("vodafone_pages", 80))):
-                await page.goto(f"https://eshop.vodafone.com.eg/ar/list?page={pg}", wait_until="domcontentloaded", timeout=60000)
+            await page.goto("https://eshop.vodafone.com.eg/ar/list", wait_until="domcontentloaded", timeout=60000)
+            try:
+                await page.wait_for_selector('a[aria-label^="View details for"]', timeout=30000)
+            except Exception:
+                log("vodafone error no products rendered", (await page.title())[:40])
+            stall, last = 0, -1
+            for rnd in range(int(cfg("vodafone_scrolls", 200))):
+                for _ in range(4):
+                    await page.mouse.wheel(0, 5000)
+                    await asyncio.sleep(0.7)
+                # لو فيه زرار "عرض المزيد" بندوس عليه
                 try:
-                    await page.wait_for_selector('a[aria-label^="View details for"]', timeout=25000)
+                    btn = page.locator("button:has-text('عرض المزيد'), button:has-text('تحميل المزيد'), button:has-text('Load more'), button:has-text('Show more')")
+                    if await btn.count():
+                        await btn.first.click(timeout=3000)
+                        await asyncio.sleep(2)
                 except Exception:
-                    log("vodafone error", pg, "no products rendered", (await page.title())[:40])
-                    break
-                for _ in range(6):   # لو الصفحة بتحمّل بالتمرير
-                    await page.mouse.wheel(0, 4000)
-                    await asyncio.sleep(0.8)
+                    pass
                 res = await page.evaluate(VODA_JS)
+                if rnd == 0:
+                    log(f"vodafone: catalog {res.get('total')}, first view {len(res['items'])} cards")
                 new = [x for x in res["items"] if x["name"] and x["name"] not in seen and x["price"]]
-                if pg == 0:
-                    log(f"vodafone: catalog {res.get('total')}, first page {len(res['items'])} cards, sample:", (res["items"][:1] or [None])[0])
-                if not new:
-                    break
                 items = []
                 for x in new:
                     seen[x["name"]] = 1
@@ -984,9 +990,14 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
                                   "price": x["price"], "list_price": x["was"],
                                   "discount_pct": round((1 - x["price"] / x["was"]) * 100) if x["was"] else None,
                                   "category": _guess_cat(x["name"]), "src_category": "vodafone", "in_stock": not x["oos"]})
-                stats["items"] += len(items)
-                await db.ingest(items)
-                await asyncio.sleep(cfg("vodafone_delay", 4) + random.uniform(0, 2))
+                if items:
+                    stats["items"] += len(items)
+                    await db.ingest(items)
+                n = len(res["items"])
+                stall = stall + 1 if n <= last else 0
+                last = max(last, n)
+                if stall >= 4 or (res.get("total") and len(seen) >= res["total"]):
+                    break
             log(f"vodafone done: {len(seen)} products in {int(time.time() - t0)}s")
         except Exception as e:
             log("vodafone error", str(e)[:120])
@@ -1000,22 +1011,23 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
 WE_JS = r"""() => {
   // كل كارت منتج فيه سعر بالشكل "12345 EGP" — بنطلع للأب اللي فيه صورة واسم
   const out = []; const used = new Set();
-  const leaves = [...document.querySelectorAll('body *')].filter(e => e.children.length === 0 && /^\s*[\d,]+(?:\.\d+)?\s*EGP\s*$/.test(e.textContent));
+  const PR = /^\s*(?:EGP|ج\.?م\.?|جنيه)?\s*[\d,]+(?:\.\d+)?\s*(?:EGP|ج\.?م\.?|جنيه)\s*$|^\s*(?:EGP|ج\.?م\.?)\s*[\d,]+(?:\.\d+)?\s*$/;
+  const leaves = [...document.querySelectorAll('body *')].filter(e => e.children.length === 0 && PR.test(e.textContent));
   for (const p of leaves) {
     let card = p;
     for (let i = 0; i < 6 && card; i++) { card = card.parentElement; if (card && card.querySelector('img')) break; }
     if (!card || used.has(card)) continue;
     used.add(card);
     const lines = card.innerText.split('\n').map(s => s.trim()).filter(Boolean);
-    const prices = lines.filter(l => /^[\d,]+(?:\.\d+)?\s*EGP$/.test(l)).map(l => +l.replace(/[^\d.]/g, ''));
-    const name = lines.find(l => !/EGP|^compare$|^مقارنة$|^\d+$/i.test(l) && l.length > 3);
+    const prices = lines.filter(l => PR.test(l)).map(l => +l.replace(/[^\d.]/g, ''));
+    const name = lines.find(l => !PR.test(l) && !/^(compare|مقارنة|قارن)$|^\d+$/i.test(l) && l.length > 3);
     const img = card.querySelector('img');
     if (name && prices.length) out.push({name, price: Math.min(...prices), was: prices.length > 1 ? Math.max(...prices) : null, img: img ? img.src : null});
   }
   return out;
 }"""
 
-WE_TABS = ["Mobiles", "Accessories", "Gaming", "Internet Devices", "Land line Phones"]
+WE_TABS = ["Mobiles", "Accessories", "Gaming", "Internet Devices", "Land line Phones", "موبايلات", "الموبايلات", "اكسسوارات", "الإكسسوارات", "ألعاب", "أجهزة الإنترنت", "تليفونات أرضية"]
 
 
 async def we_loop(ctx, db, log, stats, gate, cfg):
@@ -1031,13 +1043,15 @@ async def we_loop(ctx, db, log, stats, gate, cfg):
                     ok = await page.evaluate("""t => { const el = [...document.querySelectorAll('body *')].find(e => e.children.length < 3 && (e.innerText || '').trim() === t);
                         let x = el; for (let i = 0; i < 4 && x; i++) { x.click && x.click(); x = x.parentElement; } return !!el; }""", tab)
                     if not ok:
-                        log("we error tab", tab, "not found"); continue
+                        continue
                     await asyncio.sleep(6)
                 for pg in range(40):
                     res = await page.evaluate(WE_JS)
                     new = [x for x in res if x["name"] not in seen]
                     if pg == 0:
                         log(f"we: {tab or 'default'} view {len(res)} cards, sample:", (res[:1] or [None])[0])
+                        if tab is None and not res:
+                            log("we debug text:", (await page.evaluate("document.body.innerText"))[:300].replace("\n", " | "))
                     items = []
                     for x in new:
                         seen.add(x["name"])
