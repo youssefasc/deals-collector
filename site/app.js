@@ -14,7 +14,7 @@ const fmt=n=>n==null?'':Number(n).toLocaleString('en-US',{maximumFractionDigits:
 const ago=t=>{const s=(Date.now()-new Date(t))/1000;if(s<60)return'من ثواني';if(s<3600)return'من '+Math.floor(s/60)+' د';if(s<86400)return'من '+Math.floor(s/3600)+' س';return'من '+Math.floor(s/86400)+' يوم'};
 const thumb=u=>u&&/media-amazon\.com/.test(u)?u.replace(/\._[^/]*_\.(jpg|jpeg|png|webp)$/i,'.$1').replace(/\.(jpg|jpeg|png|webp)$/i,'._AC_UL320_.$1'):u;
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-async function counts(){const r=await fetch(SB+'rpc/site_counts',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:'{}'});return r.ok?r.json():{}}
+async function counts(store){const r=await fetch(SB+'rpc/site_counts',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({st:store||null})});return r.ok?r.json():{}}
 async function q(path){const r=await fetch(SB+path,{headers:H});if(!r.ok)throw new Error(r.status);return r.json()}
 function buildQuery(){
   let p='deals_feed?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change';
@@ -65,7 +65,7 @@ async function loadFeed(){
   }catch(e){}finally{if(my===feedCtl)g.classList.remove('loading')}
 }
 async function loadStats(){
-  try{const c=await counts();if(!c||!c.total)return;const total=c.total,drops=c.drops_1h||0;
+  try{const c=await counts(st.store);if(!c||c.total==null)return;const total=c.total,drops=c.drops_1h||0;
     document.getElementById('stats').innerHTML=`<div class="stat"><b>${Number(total).toLocaleString('en-US')}</b>منتج</div><div class="stat"><b>${drops}</b>سعر نزل آخر ساعة</div><div class="stat"><b>⚡</b>تحديث لحظي</div>`;
   }catch(e){}
 }
