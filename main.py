@@ -545,7 +545,7 @@ SET_LOC_JS = r"""async (city) => {
     const tok = (t.match(/CSRF_TOKEN\s*:\s*"([^"]+)"/) || [])[1] || '';
     const r = await fetch('/portal-migration/hz/glow/address-change?actionSource=glow', {method: 'POST',
       headers: {'Content-Type': 'application/json', 'Accept': 'text/html,*/*', 'X-Requested-With': 'XMLHttpRequest', 'anti-csrftoken-a2z': tok},
-      body: JSON.stringify({locationType: 'CITY', city: city, cityName: 'القاهرة', deviceType: 'web', storeContext: 'generic', pageType: 'Gateway', actionSource: 'glow'})});
+      body: JSON.stringify({locationType: 'GPS_INPUT', latitude: '30.0300', longitude: '31.4700', almBrandId: 'sAuWWBROaG', deviceType: 'web', storeContext: 'generic', pageType: 'Search', actionSource: 'glow'})});
     const res = await r.text();
     return {tok: !!tok, status: r.status, ok: /"successful":1/.test(res), resp: res.slice(0, 80)};
   } catch (e) { return {err: String(e)}; }
@@ -602,7 +602,11 @@ async def amazon_now_loop(amz, db: "DB"):
             page += 1
             await asyncio.sleep(SEARCH_DELAY + random.uniform(0, 1.0))
         log(f"amazon now done: {total} products, {page} pages in {int(time.time() - t0)}s")
-        await asyncio.sleep(120)
+        if not total:
+            await asyncio.sleep(600)
+            await set_location(amz)
+        else:
+            await asyncio.sleep(120)
 
 
 async def resale_loop(amz, db: "DB"):
