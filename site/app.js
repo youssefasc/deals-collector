@@ -212,7 +212,7 @@ function ppHTML(p,full){
   <h3 class="hist-h">📈 تاريخ السعر</h3><canvas id="cv"></canvas>
   ${/^amazon/.test(p.store)?`<a class="btn trackbtn" href="${BOT_URL}?start=t_${esc(p.pid||String(p.id).split(':')[1])}" target="_blank" rel="noopener">🔔 تابع سعر المنتج ده على البوت — ونبهك أول ما ينزل</a>`:''}
   ${full?`<p class="since">آخر تغيير في السعر ${ago(p.last_change)} · بنتابعه ${ago(p.first_seen)}</p>`:''}
-  <div class="buybar"><a class="btn buy" ${p.url?`href="${esc(affLink(p.url))}"`:''} target="_blank" rel="noopener sponsored">🛒 اشتري من ${esc(storeName(p.store))} <small>${fmt(pr)} ج</small></a><button class="btn share" id="share">🔗 مشاركة</button></div></div></div>
+  <div class="buybar"><a class="btn buy" id="buyBtn" href="${p.url?esc(affLink(p.url)):'#'}" data-ready="${p.url?1:0}" target="_blank" rel="noopener sponsored">🛒 اشتري من ${esc(storeName(p.store))} <small>${fmt(pr)} ج</small></a><button class="btn share" id="share">🔗 مشاركة</button></div></div></div>
   <section class="sec" id="simSec" hidden><div class="sec-h"><h2>عروض شبهه</h2></div><div class="rail" id="simRail"></div></section>`;
 }
 async function product(id){
@@ -226,6 +226,7 @@ async function product(id){
   app.innerHTML=ppHTML(p,{hist:hist.length});$('cv').classList.toggle('small',hist.length<2);chart($('cv'),hist);
   document.title=p.title+' — عروض متتفوتش';
   {const row=SEEN.get(id)||{id:p.id,store:p.store,title:p.title,image:p.image,price:p.price,list_price:p.list_price,discount_pct:p.discount_pct,drop_pct:p.drop_pct,score:p.score,last_change:p.last_change};const rv=(ls.get('rv')||[]).filter(x=>x.id!==id);rv.unshift(row);ls.set('rv',rv.slice(0,15))}
+  const bb=$('buyBtn');if(bb)bb.onclick=e=>{if(bb.dataset.ready!=='1'){e.preventDefault()}};
   $('share').onclick=()=>{const u=location.href;navigator.share?navigator.share({title:p.title,url:u}).catch(()=>{}):navigator.clipboard.writeText(u).then(()=>toast('اتنسخ اللينك ✅'))};
   if(p.category)cdn(`deals_feed?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change&category=eq.${p.category}&discount_pct=gte.15&order=score.desc.nullslast&limit=12`).then(r=>{r=r.filter(x=>x.id!==p.id);if(r.length&&$('simRail')){$('simSec').hidden=false;$('simRail').innerHTML=r.map(x=>card(x)).join('')}}).catch(()=>{});
 }
