@@ -850,7 +850,7 @@ async def main():
         await asyncio.sleep(3)
         amz = Amazon(page)
         # لو أمازون رجّع صفحة "عذرًا" نحاول تاني بعد شوية بدل ما نقف ٥ دقايق
-        for attempt in range(6):
+        for attempt in range(6 if os.environ.get("AMAZON_MAIN", "1") != "0" else 0):
             await amz.discover()
             if amz.feeds:
                 break
