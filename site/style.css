@@ -177,3 +177,6 @@ main{max-width:1240px;margin:0 auto;padding:0 16px 30px;min-height:70vh}
 .card .img img{position:absolute;inset:8px;width:calc(100% - 16px);height:calc(100% - 16px);object-fit:contain}
 @media(max-width:560px){.card .img img{inset:5px;width:calc(100% - 10px);height:calc(100% - 10px)}}
 .pp .pimg{overflow:hidden}.pp .pimg img{width:100%;height:100%}
+.card{content-visibility:visible;contain-intrinsic-size:none}
+.rail{align-items:start}.rail .card{height:100%}
+.card .body{flex:0 0 auto}
