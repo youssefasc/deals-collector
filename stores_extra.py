@@ -448,12 +448,22 @@ async def btech_loop(ctx, db, log, stats, gate, cfg):
     while True:
         await gate("btech")
         t0, total = time.time(), 0
-        for slug in BTECH_CATS:
-            pg, pages, seen = 1, 1, set()
-            while pg <= min(pages or 1, 200):
+        # الموقع مبيقلّبش صفحات من السيرفر — فبنلف على كل الأقسام الفرعية (من الـsitemap) وكل قسم بيدي أول ٢٠ منتج
+        try:
+            leaves = await page.evaluate("""async () => { const x = await (await fetch('/sitemap.xml')).text();
+              const c = [...new Set(x.split('<loc>').slice(1).map(v => v.split('</loc>')[0].replace('https://btech.com', '')).filter(v => v.startsWith('/ar/c/')))];
+              return c.filter(a => !c.some(b => b !== a && b.startsWith(a + '/'))); }""")
+        except Exception as e:
+            log("btech sitemap error", str(e)[:100]); leaves = []
+        paths = leaves or [f"/ar/c/{x}" for x in BTECH_CATS]
+        seen = set()
+        for path in paths:
+            slug = path.split("/")[3] if path.count("/") >= 3 else path
+            pg, pages = 1, 1
+            while pg <= 1:
                 await gate("btech")
                 stats["requests"] += 1
-                res = await page.evaluate(BTECH_JS, f"/ar/c/{slug}?page={pg}")
+                res = await page.evaluate(BTECH_JS, path)
                 if res.get("err"):
                     stats["errors"] += 1
                     log("btech error", slug, pg, res.get("err"))
