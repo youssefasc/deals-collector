@@ -994,6 +994,9 @@ async def vodafone_loop(ctx, db, log, stats, gate, cfg):
                           await asyncio.sleep(2)
                   except Exception:
                       pass
+                  # الصور بتتحمل بس لما الكارت يظهر على الشاشة، فبنعدّي على كل كارت قبل القراية
+                  await page.evaluate("""async () => { for (const a of document.querySelectorAll('a[aria-label^="View details for"]')) { a.scrollIntoView({block: 'center'}); await new Promise(r => setTimeout(r, 120)); } }""")
+                  await asyncio.sleep(1.5)
                   res = await page.evaluate(VODA_JS)
                   if res.get('dbg') and not getattr(vodafone_loop, '_dbg', 0):
                       vodafone_loop._dbg = 1
