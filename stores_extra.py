@@ -1034,7 +1034,7 @@ WE_JS = r"""() => {
     const prices = lines.filter(l => PR.test(l)).map(l => +l.replace(/[^\d.]/g, ''));
     const name = lines.find(l => !PR.test(l) && !/^(compare|مقارنة|قارن)$|^\d+$/i.test(l) && l.length > 3);
     const img = card.querySelector('img');
-    if (name && prices.length) out.push({name, price: Math.min(...prices), was: prices.length > 1 ? Math.max(...prices) : null, img: img ? img.src : null});
+    if (name && prices.length) out.push({name, price: wasP ? Math.min(...prices.filter(p => p !== wasP).concat(wasP)) : prices[0], was: wasP, img: img ? img.src : null});
   }
   return out;
 }"""
@@ -1049,11 +1049,17 @@ TE_JS = r"""() => {
   const out = [], used = new Set();
   for (const a of document.querySelectorAll('a[href*="/w/"]')) {
     let card = a;
-    for (let i = 0; i < 7 && card; i++) { card = card.parentElement; if (card && card.querySelector('img') && /\d{3,}\s*(EGP|EPG|جنيه)/i.test(card.innerText)) break; }
-    if (!card || used.has(card) || !/\d{3,}\s*(EGP|EPG|جنيه)/i.test(card.innerText)) continue;
+    const PRX = /\d{2,}\s*(EGP|EPG|جنيه)/i;
+    for (let i = 0; i < 7 && card; i++) { card = card.parentElement; if (card && card.querySelector('img') && PRX.test(card.innerText)) break; }
+    if (!card || used.has(card) || !PRX.test(card.innerText)) continue;
+    // الكارت لازم يكون لمنتج واحد بس — لو فيه أكتر من منتج يبقى طلعنا لفوق زيادة
+    if (new Set([...card.querySelectorAll('a[href*="/w/"]')].map(x => x.href.split('?')[0])).size > 1) continue;
     used.add(card);
     const t = card.innerText;
-    const prices = [...t.matchAll(/([\d,\.]{3,})\s*(?:EGP|EPG|جنيه)/gi)].map(m => +m[1].replace(/,/g, '')).filter(x => x > 0);
+    const prices = [...t.matchAll(/([\d,\.]{2,})\s*(?:EGP|EPG|جنيه)/gi)].map(m => +m[1].replace(/,/g, '')).filter(x => x > 0);
+    // السعر القديم بس لو مكتوب متشطب فعلاً في الكارت
+    const strike = [...card.querySelectorAll('del,s,strike,*')].find(e => e.children.length === 0 && PRX.test(e.innerText || '') && getComputedStyle(e).textDecorationLine.includes('line-through'));
+    const wasP = strike ? +((strike.innerText.match(/[\d,\.]{2,}/) || ['0'])[0].replace(/,/g, '')) : null;
     const lines = t.split('\n').map(s => s.trim()).filter(Boolean);
     const BAD = /^(compare|buy now|buy|add to cart|out of stock|in stock|details|read more|اقرأ المزيد|المزيد|قارن|اشتري الآن|new|جديد|\d+%?.*off)$/i;
     const h = card.querySelector('h1,h2,h3,h4,h5,h6,[class*="title"],[class*="name"]');
