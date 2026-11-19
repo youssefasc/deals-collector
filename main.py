@@ -826,7 +826,8 @@ async def main():
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/120.0.0.0 Safari/537.36"))
         await ctx2.route(re.compile(r".*\.(png|jpe?g|gif|webp|svg|woff2?|ttf|mp4|css)(\?.*)?$"), lambda r: r.abort())
-        loops = [search_loop(amz, db), top_loop(amz, db), amazon_now_loop(amz, db), resale_loop(amz, db),
+        main_on = os.environ.get("AMAZON_MAIN", "1") != "0"   # أمازون العادي (أتقل حاجة على قاعدة البيانات)
+        loops = ([search_loop(amz, db), top_loop(amz, db)] if main_on else []) + [amazon_now_loop(amz, db), resale_loop(amz, db),
                  stats_loop(db), refresh_loop(amz), config_loop(db),
                  stores_extra.talabat_loop(ctx2, db, log, stats, gate, cfg),
                  stores_extra.twob_loop(ctx2, db, log, stats, gate, cfg),
@@ -834,8 +835,10 @@ async def main():
                  stores_extra.carrefour_loop(ctx2, db, log, stats, gate, cfg),
                  stores_extra.dream_loop(ctx2, db, log, stats, gate, cfg),
                  stores_extra.dubai_loop(ctx2, db, log, stats, gate, cfg)]
-        if amz.feeds:
+        if amz.feeds and main_on:
             loops += [hot_loop(amz, db), sweep_loop(amz, db), coupon_loop(amz, db)]
+        if not main_on:
+            log("amazon main collector is OFF (AMAZON_MAIN=0)")
         else:
             log("deals feed not found — running search sources only")
         async def guard(coro, name):
