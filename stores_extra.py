@@ -408,6 +408,18 @@ def _cat_from_path(path: str) -> str:
     return "electronics"
 
 
+async def _polite(evaluate, log, name, pg):
+    """لو المتجر قال "استنى" (403/429) — بنستنى ٢ ← ٥ ← ١٠ دقايق ونعيد نفس الصفحة، من غير ما نضغط عليه."""
+    for wait in (0, 120, 300, 600):
+        if wait:
+            log(f"{name}: rate-limited on page {pg} — waiting {wait // 60} min then retrying same page")
+            await asyncio.sleep(wait)
+        res = await evaluate()
+        if not (isinstance(res, dict) and res.get("err") in (403, 429)):
+            return res
+    return res
+
+
 async def twob_loop(ctx, db, log, stats, gate, cfg):
     page = await _new_page(ctx)
     try:
@@ -424,7 +436,7 @@ async def twob_loop(ctx, db, log, stats, gate, cfg):
         while pg <= 100:
             await gate("2b")
             stats["requests"] += 1
-            res = await page.evaluate(js, [TWOB_Q, pg])
+            res = await _polite(lambda: page.evaluate(js, [TWOB_Q, pg]), log, "2b", pg)
             data = ((res or {}).get("data") or {}).get("products") or {}
             if res.get("err") or not data:
                 stats["errors"] += 1
@@ -630,7 +642,7 @@ async def dream_loop(ctx, db, log, stats, gate, cfg):
         for pg in range(1, 200):
             await gate("dream2000")
             stats["requests"] += 1
-            res = await page.evaluate(js, pg)
+            res = await _polite(lambda: page.evaluate(js, pg), log, "dream2000", pg)
             if res.get("err"):
                 stats["errors"] += 1
                 log("dream2000 error", pg, res.get("err"))
