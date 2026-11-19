@@ -547,12 +547,22 @@ async def amazon_now_loop(amz, db: "DB"):
             res = None
             for u in (f"https://www.amazon.eg/s?me={AMAZON_NOW_SMID}&fs=true&language=ar_AE&page={page}",
                       f"https://www.amazon.eg/s?me={AMAZON_NOW_SMID}&language=ar_AE&page={page}",
+                      f"https://www.amazon.eg/s?i=amazonnow&almBrandId=sAuWWBROaG&fs=true&language=ar_AE&page={page}",
                       f"https://www.amazon.eg/s?i=grocery&rh=p_6%3A{AMAZON_NOW_SMID}&language=ar_AE&page={page}"):
                 res = await fetch_search(amz, u)
                 if res and res.get("items"):
                     break
                 if page == 1:
                     log("amazon now: empty for", u[30:90])
+                    try:
+                        dbg = await amz.page.evaluate("""async (u) => { const t = await (await fetch(u)).text();
+                          const loc = (t.match(/glow-ingress-line2[^>]*>([^<]*)/) || [])[1] || '';
+                          const n = (t.match(/data-component-type="s-search-result"/g) || []).length;
+                          const msg = (t.match(/s-no-results[\s\S]{0,300}/) || [''])[0].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 150);
+                          return {loc: loc.trim(), n, len: t.length, msg}; }""", u)
+                        log("amazon now debug:", dbg)
+                    except Exception as e:
+                        log("amazon now debug err", repr(e)[:100])
             if not res or not res.get("items"):
                 break
             items = [i for i in (search_item(x, "grocery", "amazon_now") for x in res.get("items") or []) if i]
