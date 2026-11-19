@@ -4,90 +4,54 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>عروض متتفوتش — أقوى عروض مصر لحظة بلحظة</title>
-<meta name="description" content="كل خصومات أمازون مصر في مكان واحد، بتتحدث لحظياً، مع تاريخ السعر وكشف الخصم الوهمي.">
-<meta name="theme-color" content="#0f1115">
+<meta name="description" content="أقوى خصومات أمازون وكارفور وB.TECH وطلبات وكل المتاجر المصرية في مكان واحد، بتتحدث لحظياً، مع تاريخ السعر وكشف الخصم الوهمي.">
+<meta name="theme-color" content="#ff5a1f">
 <link rel="icon" href="favicon.png">
 <link rel="apple-touch-icon" href="logo.jpg">
 <meta property="og:image" content="logo.jpg">
+<link rel="preconnect" href="https://unwzvhdwxmlmknvgvrhp.supabase.co">
+<link rel="preconnect" href="https://m.media-amazon.com">
+<link rel="preload" href="/api/home" as="fetch" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="annc" id="annc" hidden></div>
 <header class="top">
-  <a class="brand" href="#/">
-    <img class="logo" src="logo.jpg" alt="عروض متتفوتش">
-    <span><b>عروض متتفوتش</b><small>أقوى عروض مصر لحظة بلحظة</small></span>
-  </a>
-  <div class="live"><span class="dot"></span><span id="liveText">مباشر</span></div>
-  <form class="topsearch" id="topSearch" action="javascript:void 0"><span>🔍</span><input id="topQ" type="search" enterkeyhint="search" placeholder="ابحث عن أي منتج… في جميع المتاجر"></form>
+  <div class="top-in">
+    <a class="brand" href="#/">
+      <img class="logo" src="logo.jpg" alt="" width="40" height="40">
+      <span><b>عروض متتفوتش</b><small><i class="dot"></i><em id="liveText">مباشر</em></small></span>
+    </a>
+    <form class="topsearch" id="topSearch" action="javascript:void 0">
+      <svg viewBox="0 0 24 24"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.2 4.2-1.4 1.4-4.2-4.2A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>
+      <input id="topQ" type="search" enterkeyhint="search" autocomplete="off" placeholder="ابحث عن أي منتج… في جميع المتاجر">
+    </form>
+    <nav class="topnav">
+      <a href="#/deals">⚡ العروض</a><a href="#/deals?type=drop">📉 نزل سعره</a><a href="#/coupons">🎟 الكوبونات</a><a id="botTop" target="_blank" rel="noopener">🤖 البوت</a>
+    </nav>
+  </div>
 </header>
 
 <main id="app"></main>
 
 <footer class="foot">
-  <a href="https://t.me/offer_egypt" data-chan target="_blank" rel="noopener">📢 قناة التليجرام</a>
-  <span>الأسعار بتتحدث تلقائياً — اتأكد من السعر في المتجر قبل الشراء.</span>
+  <img src="logo.jpg" alt="" width="48" height="48">
+  <b>عروض متتفوتش</b>
+  <p>بنراقب الأسعار في أهم المتاجر المصرية 24 ساعة، ونكشفلك الخصم الحقيقي من الوهمي.</p>
+  <div class="foot-links"><a href="https://t.me/offer_egypt" data-chan target="_blank" rel="noopener">📢 قناة التليجرام</a><a class="botLink" target="_blank" rel="noopener">🤖 بوت تتبع الأسعار</a><a href="#/coupons">🎟 الكوبونات</a></div>
+  <small>الأسعار بتتحدث تلقائياً — اتأكد من السعر في المتجر قبل الشراء.</small>
 </footer>
 
-<template id="homeTpl">
-  <section class="land">
-    <span class="pill" id="landPill">⚡ بنتابع الأسعار 24 ساعة</span>
-    <h1 id="landTitle">أقوى العروض في مصر… <span>من غير ما تدوّر</span> 🔥</h1>
-    <p id="landText">«عروض متتفوتش» بيراقب أسعار <b>آلاف المنتجات</b> في <b>أهم المتاجر المصرية</b> لحظة بلحظة. أول ما سعر ينزل بجد بيظهرلك هنا — ومعاه <b>تاريخ سعره كامل</b> عشان تتأكد إن الخصم حقيقي مش وهمي، وتشتري وأنت مطمّن.</p>
-    <div class="cta">
-      <a class="btn buy" href="#/deals">⚡ أحدث المنتجات</a>
-      <a class="btn stores-btn" href="#stores">🏪 اختار المتجر <span>←</span></a>
-      <a class="btn dropbtn" href="#/deals?type=drop">📉 نزل سعره دلوقتي</a>
-      <a class="btn cpbtn" href="#/coupons">🎟 الكوبونات</a>
-      <a class="btn tg" id="botBtn" target="_blank" rel="noopener">🤖 بوت تتبع الأسعار</a>
-      <a class="btn tg" href="https://t.me/offer_egypt" data-chan target="_blank" rel="noopener">📢 قناة التليجرام</a>
-      <a class="btn search-btn" href="#" id="searchBtn">🔍 ابحث عن منتج</a>
-    </div>
-    <div class="nums" id="landStats"></div>
-  </section>
-  <section class="why">
-    <div><b>📉 كشف الخصم الوهمي</b><span>بنقارن السعر بتاريخه، ونقولك لو الخصم حقيقي ولا متضخم.</span></div>
-    <div><b>⚡ تحديث لحظي</b><span>العروض بتتحدث قدامك من غير ما تعمل ريفريش.</span></div>
-    <div><b>🔥 قوة اللقطة</b><span>تقييم من 100 لكل عرض عشان تعرف اللقطة من أول نظرة.</span></div>
-  </section>
-  <section class="drops" id="featSec" hidden>
-    <div class="drops-h"><h2 id="featTitle">⭐ اخترنالك</h2></div>
-    <div class="dstrip" id="featStrip"></div>
-  </section>
-  <section class="drops">
-    <div class="drops-h"><h2>📉 نزل سعره دلوقتي</h2><a href="#/deals?type=drop">شوف الكل ←</a></div>
-    <p class="sub">منتجات سعرها نزل بجد عن آخر سعر سجلناه — مش خصم مكتوب وبس.</p>
-    <div class="dstrip" id="dropStrip"><div class="empty">بنحمّل…</div></div>
-  </section>
-  <section id="stores">
-    <h2>🛍️ تسوّق حسب المتجر</h2>
-    <p class="sub">اختار متجر وشوف كل عروضه، أو شوف عروض كل المتاجر مع بعض.</p>
-    <a class="allStores" href="#/deals">🌐 عروض كل المتاجر</a>
-    <div class="stores" id="storeGrid"></div>
-  </section>
-</template>
-
-<template id="feedTpl">
-  <section class="hero">
-    <h1 id="feedTitle">اللي نزل <span>دلوقتي</span></h1>
-    <p id="heroSub">بنراقب أسعار أمازون مصر طول الوقت — وأول ما سعر ينزل بيظهر هنا.</p>
-    <div class="stats" id="stats"></div>
-  </section>
-  <section class="controls">
-    <div class="search"><input id="q" type="search" placeholder="دوّر على منتج… (آيفون، غسالة، كوتشي)"></div>
-    <div class="chips" id="typeChips"></div>
-    <div class="chips" id="sinceChips"></div>
-    <div class="chips" id="sortChips"></div>
-    <div class="chips" id="catChips"></div>
-    <div class="chips" id="pctChips"></div>
-  </section>
-  <section class="grid" id="grid"></section>
-  <div class="more"><button id="moreBtn">عرض أكتر</button></div>
-</template>
-
-<a class="fab" href="https://t.me/offer_egypt" data-chan target="_blank" rel="noopener" aria-label="تليجرام">✈️</a>
+<nav class="bnav" id="bnav">
+  <a href="#/" data-r="home"><span>🏠</span>الرئيسية</a>
+  <a href="#/deals" data-r="deals"><span>⚡</span>العروض</a>
+  <a href="#/deals?type=drop" data-r="drop"><span>📉</span>نزل سعره</a>
+  <a href="#/coupons" data-r="coupons"><span>🎟</span>كوبونات</a>
+  <a href="#stores" data-r="stores"><span>🏪</span>المتاجر</a>
+</nav>
 <script src="app.js"></script>
 </body>
 </html>
