@@ -1148,8 +1148,8 @@ def _et_item(p, cat_name):
     img = (img.get("imageUrl") if isinstance(img, dict) else img) or next((x.get("imageUrl") for x in (p.get("images") or []) if isinstance(x, dict)), None)
     if img and img.startswith("/"):
         img = "https://www.eand.com.eg" + img
-    slug = (d.get("friendlyUrl") if isinstance(d, dict) else None) or ""
-    url = f"https://www.eand.com.eg/eshop2/#/product/{slug or pid}?pid={pid}"
+    from urllib.parse import quote
+    url = f"https://www.eand.com.eg/eshop2/#/product/{quote(str(name).strip().replace(' ', '-'), safe='-')}?pid={pid}"
     desc = (d.get("description") if isinstance(d, dict) else None) or ""
     desc = re.sub(r"<[^>]+>", " ", desc)[:500].strip() or None
     stock = p.get("available")
