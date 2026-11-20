@@ -853,7 +853,7 @@ def _resources() -> dict:
             cpu_avg = round((usec - _RES["cpu0"]) / 1e6 / max(1, time.time() - _RES["t0"]), 2)
     import os as _os
     return {"mem_mb": cur_mb, "peak_mb": peak_mb, "cpu_cores_avg": cpu_avg,
-            "host_cpus": _os.cpu_count(), "arch": _os.uname().machine, "at": time.time()}
+            "host_cpus": _os.cpu_count(), "arch": __import__("platform").machine().lower(), "os": __import__("platform").system(), "at": time.time()}
 
 
 async def stats_loop(db: DB):
@@ -866,7 +866,7 @@ async def stats_loop(db: DB):
         await db.set_state("health", {**HEALTH, "_at": time.time()})
         # نبضة للـ watchdog على السيرفر + قياس استهلاك الذاكرة والمعالج الفعلي
         try:
-            open("/tmp/collector_alive", "w").write(str(time.time()))
+            import tempfile as _tf, os as _o2; open(_o2.path.join(_tf.gettempdir(), "collector_alive"), "w").write(str(time.time()))
         except Exception:
             pass
         try:

@@ -1,0 +1,45 @@
+name: اختبار التشغيل على Windows
+
+# بيشغّل deploy/windows/install.ps1 على جهاز Windows نضيف بنفس الخطوات اللي هتحصل على كمبيوترك،
+# ويتأكد إن الجامع اشتغل فعلاً، وإن الـ loop بيرجّعه لو وقع.
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'مدة ترك الجامع شغال بالدقايق'
+        default: '12'
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install (same script as the PC)
+        shell: powershell
+        env:
+          INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          GH_READ: ${{ github.token }}
+        run: |
+          & .\deploy\windows\install.ps1 -Token $env:INGEST_TOKEN -GitToken $env:GH_READ
+      - name: Collector running?
+        shell: powershell
+        run: |
+          Start-Sleep 120
+          Get-ScheduledTask -TaskName OroodCollector | Select-Object TaskName,State | Format-Table
+          Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' } | Select-Object ProcessId,CommandLine | Format-List
+          Get-Content "$env:LOCALAPPDATA\OroodCollector\collector.log" -Tail 25
+      - name: Crash recovery (kill python → loop restarts it)
+        shell: powershell
+        run: |
+          Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+          Start-Sleep 120
+          $n = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' }).Count
+          "collector processes after kill: $n"
+          if ($n -lt 1) { throw "loop did not restart the collector" }
+      - name: Let it collect
+        shell: powershell
+        run: |
+          Start-Sleep ([int]"${{ github.event.inputs.minutes || '12' }}" * 60)
+          Get-Content "$env:LOCALAPPDATA\OroodCollector\collector.log" -Tail 30
+          $b = Join-Path $env:TEMP "collector_alive"; if (Test-Path $b) { "heartbeat: $((Get-Item $b).LastWriteTime)" } else { throw "no heartbeat" }
