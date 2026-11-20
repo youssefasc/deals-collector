@@ -26,13 +26,13 @@ jobs:
       - name: Batch mode works (runs, stops, starts again)
         shell: powershell
         run: |
-          Start-Sleep 150
+          Start-Sleep 60
           $running = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' }).Count
           "during batch: $running collector processes"
-          Start-Sleep 60
+          Start-Sleep 110
           $stopped = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' }).Count
           "between batches: $stopped collector processes"
-          Start-Sleep 120
+          Start-Sleep 130
           $again = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' }).Count
           "next batch: $again collector processes"
           Get-Content "$env:LOCALAPPDATA\OroodCollector\collector.log" -Tail 40
