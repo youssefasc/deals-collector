@@ -1,25 +1,29 @@
 name: جامع متاجر المتصفح (مجاني)
 
 # الجامع الأساسي سحابي (Supabase Edge Function) وشغال كل دقيقة.
-# ده بيجمع بس المتاجر اللي محتاجة متصفح كامل (كارفور، فودافون، أورنج) ٣ مرات في اليوم.
+# ده بيجمع المتاجر اللي محتاجة متصفح كامل (كارفور، فودافون، أورنج) على طول من غير توقف:
+# كل متجر في تشغيلة لوحده، كل تشغيلة ~٥:٥٠ ساعة، والجدولة كل ٢٠ دقيقة بتجهّز اللي بعدها (الريبو عام = دقايق مجانية).
 # 2B ودبي فون بيرفضوا سيرفرات GitHub، فبيجمعهم برنامج الويندوز (deploy/windows).
 on:
   schedule:
-    - cron: '17 4,12,20 * * *'   # ٦ الصبح و٢ الضهر و١٠ بالليل بتوقيت مصر
+    - cron: '*/20 * * * *'
   workflow_dispatch:
     inputs:
       minutes:
         description: 'مدة التشغيل بالدقايق'
-        default: '15'
-
-concurrency:
-  group: collector
-  cancel-in-progress: false
+        default: '350'
 
 jobs:
   collect:
+    strategy:
+      fail-fast: false
+      matrix:
+        store: [carrefour, vodafone, orange]
+    concurrency:
+      group: collector-${{ matrix.store }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 358
     container: mcr.microsoft.com/playwright/python:v1.40.0-jammy
     env:
       SUPABASE_URL: https://unwzvhdwxmlmknvgvrhp.supabase.co
@@ -28,7 +32,7 @@ jobs:
       AMAZON_MAIN: '0'
       DB_CONCURRENCY: '1'
       SWEEP_WORKERS: '2'
-      ONLY_STORES: 'carrefour,vodafone,orange'
+      ONLY_STORES: ${{ matrix.store }}
       PYTHONUNBUFFERED: '1'
     steps:
       - uses: actions/checkout@v4
@@ -37,5 +41,5 @@ jobs:
       - name: Run collector
         run: |
           if [ -z "$INGEST_TOKEN" ]; then echo "::error::ضيف INGEST_TOKEN في Settings > Secrets > Actions"; exit 1; fi
-          M="${{ github.event.inputs.minutes || '15' }}"
+          M="${{ github.event.inputs.minutes || '350' }}"
           timeout "$((M*60))" python main.py || [ $? -eq 124 ]
