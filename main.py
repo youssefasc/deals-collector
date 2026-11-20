@@ -823,6 +823,39 @@ def store_log(*a):
         health(mm.group(1).replace("twob", "2b"), ok=False, err=mm.group(2) or msg[-60:])
 
 
+_RES = {"peak_mb": 0, "cpu0": None, "t0": None}
+
+
+def _resources() -> dict:
+    """ذاكرة الجامع كله (البايثون + الكروميوم) من الـ cgroup، ومتوسط استهلاك المعالج."""
+    def rd(p):
+        try:
+            return open(p).read().strip()
+        except Exception:
+            return None
+    cur = rd("/sys/fs/cgroup/memory.current") or rd("/sys/fs/cgroup/memory/memory.usage_in_bytes")
+    peak = rd("/sys/fs/cgroup/memory.peak") or rd("/sys/fs/cgroup/memory/memory.max_usage_in_bytes")
+    cur_mb = int(cur) // 2**20 if cur and cur.isdigit() else None
+    if cur_mb:
+        _RES["peak_mb"] = max(_RES["peak_mb"], cur_mb)
+    peak_mb = int(peak) // 2**20 if peak and peak.isdigit() else _RES["peak_mb"]
+    usec = None
+    st = rd("/sys/fs/cgroup/cpu.stat")
+    if st:
+        for line in st.splitlines():
+            if line.startswith("usage_usec"):
+                usec = int(line.split()[1])
+    cpu_avg = None
+    if usec is not None:
+        if _RES["cpu0"] is None:
+            _RES["cpu0"], _RES["t0"] = usec, time.time()
+        else:
+            cpu_avg = round((usec - _RES["cpu0"]) / 1e6 / max(1, time.time() - _RES["t0"]), 2)
+    import os as _os
+    return {"mem_mb": cur_mb, "peak_mb": peak_mb, "cpu_cores_avg": cpu_avg,
+            "host_cpus": _os.cpu_count(), "arch": _os.uname().machine, "at": time.time()}
+
+
 async def stats_loop(db: DB):
     while True:
         await asyncio.sleep(60)
@@ -831,6 +864,15 @@ async def stats_loop(db: DB):
             f"{stats['changed']} price changes, {stats['errors']} errors ({stats['requests'] / mins:.0f} req/min)")
         await db.set_state("stats", {k: v for k, v in stats.items()})
         await db.set_state("health", {**HEALTH, "_at": time.time()})
+        # نبضة للـ watchdog على السيرفر + قياس استهلاك الذاكرة والمعالج الفعلي
+        try:
+            open("/tmp/collector_alive", "w").write(str(time.time()))
+        except Exception:
+            pass
+        try:
+            r = _resources(); await db.set_state("resources_" + r["arch"], r)
+        except Exception:
+            pass
 
 
 async def main():
