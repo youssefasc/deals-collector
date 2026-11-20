@@ -37,6 +37,7 @@ jobs:
           $n = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' }).Count
           "collector processes after kill: $n"
           if ($n -lt 1) { throw "loop did not restart the collector" }
+          if ($n -gt 2) { throw "duplicate collectors running" }
       - name: Let it collect
         shell: powershell
         run: |

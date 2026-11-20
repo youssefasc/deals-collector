@@ -20,7 +20,11 @@ function Start-Collector {
     -RedirectStandardOutput "$Log.out" -RedirectStandardError "$Log.err"
 }
 function Stop-Collector($p) {
-  if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+  # بنقفل الشجرة كلها (بايثون في الـ venv بيشتغل كعمليتين على Windows)
+  if ($p) { taskkill /T /F /PID $p.Id 2>$null | Out-Null }
+  Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like "*main.py*" -and ((Get-CimInstance Win32_Process -Filter "ProcessId=$($_.ParentProcessId)" -ErrorAction SilentlyContinue).Name -ne "explorer.exe") -and ($_.ExecutablePath -like "*OroodCollector*" -or $_.ExecutablePath -like "*Python*") } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   Get-CimInstance Win32_Process -Filter "Name='chrome.exe' OR Name='headless_shell.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.ExecutablePath -like "*ms-playwright*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
@@ -33,7 +37,7 @@ while ($true) {
   # نقل لوج العملية للوج الرئيسي
   foreach ($f in "$Log.out","$Log.err") { if (Test-Path $f) { Get-Content $f -ErrorAction SilentlyContinue | Out-File -Append -Encoding UTF8 $Log; Clear-Content $f -ErrorAction SilentlyContinue } }
 
-  if ($p.HasExited) { L "collector exited (code $($p.ExitCode)) → restart in 30s"; Start-Sleep 30; Stop-Collector $null; $p = Start-Collector; $started = Get-Date; continue }
+  if ($p.HasExited) { L "collector exited (code $($p.ExitCode)) → restart in 30s"; Stop-Collector $null; Start-Sleep 30; $p = Start-Collector; $started = Get-Date; continue }
 
   # watchdog: مفيش نبضة من ١٥ دقيقة (بعد أول ١٥ دقيقة من التشغيل)
   if (((Get-Date) - $started).TotalMinutes -gt 15) {
