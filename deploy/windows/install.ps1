@@ -1,5 +1,6 @@
 ﻿# ═══════════════════════════════════════════════════════════════════
-#  جامع «عروض متتفوتش» — تشغيل مجاني ٢٤ ساعة على كمبيوتر Windows
+#  جامع «عروض متتفوتش» — متاجر المتصفح (2B، دبي فون، كارفور، فودافون، أورنج) على كمبيوتر Windows
+#  باقي المتاجر بيجمعها الجامع السحابي على Supabase لوحده
 #  بيعمل كل حاجة لوحده: Python + Git + الكود + المتصفح + مهمة تشتغل مع فتح الكمبيوتر
 #  وبيرجّع الجامع لو وقع، وبيحدّث نفسه من GitHub كل ١٥ دقيقة.
 # ═══════════════════════════════════════════════════════════════════
@@ -56,6 +57,7 @@ SUPABASE_URL=https://unwzvhdwxmlmknvgvrhp.supabase.co
 SUPABASE_KEY=$Key
 INGEST_TOKEN=$Token
 AMAZON_MAIN=0
+ONLY_STORES=2b,dubaiphone,carrefour,vodafone,orange
 DB_CONCURRENCY=1
 SWEEP_WORKERS=2
 PYTHONUNBUFFERED=1

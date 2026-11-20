@@ -31,9 +31,20 @@ jobs:
       PYTHONUNBUFFERED: '1'
     steps:
       - uses: actions/checkout@v4
+      - name: Skip if the PC collector is running
+        id: gate
+        run: |
+          # لو أداة الكمبيوتر بعتت نبضة في آخر ٢٠ دقيقة يبقى هي اللي بتجمع المتاجر دي — مش محتاجين نشغّل هنا
+          AT=$(curl -s "$SUPABASE_URL/rest/v1/rpc/collector_get_state" -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" \
+               -H 'Content-Type: application/json' -d "{\"token\":\"$INGEST_TOKEN\",\"k\":\"health\"}" | python3 -c 'import sys,json;d=json.load(sys.stdin) or {};print(int(d.get("_at",0)))' 2>/dev/null || echo 0)
+          AGE=$(( $(date +%s) - AT ))
+          echo "last PC heartbeat ${AGE}s ago"
+          if [ "${{ github.event_name }}" = "schedule" ] && [ $AGE -lt 1200 ]; then echo "skip=1" >> $GITHUB_OUTPUT; fi
       - name: Install
+        if: steps.gate.outputs.skip != '1'
         run: pip install --no-cache-dir -r requirements.txt
       - name: Run collector
+        if: steps.gate.outputs.skip != '1'
         run: |
           if [ -z "$INGEST_TOKEN" ]; then echo "::error::ضيف INGEST_TOKEN في Settings > Secrets > Actions"; exit 1; fi
           M="${{ github.event.inputs.minutes || '15' }}"
