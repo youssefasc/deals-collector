@@ -47,7 +47,7 @@ function card(p,live){
   <div class="price"><b>${fmt(pr)} <small>ج.م</small></b>${was?`<s>${fmt(was)}</s>`:''}</div>
   ${was&&was-pr>=1?`<div class="save">وفّر ${fmt(was-pr)} ج</div>`:''}
   <div class="hotbar" title="قوة اللقطة ${sc}"><i style="width:${Math.max(4,sc)}%"></i></div>
-  <div class="cfoot">${storeTag(p.store)}<span>${ago(p.last_change)}</span></div></div></a>`;
+  <div class="cfoot">${storeTag(p.store)}<span title="آخر تحديث للسعر">🕒 ${ago(p.last_change)}</span></div></div></a>`;
 }
 const skel=n=>Array.from({length:n},()=>'<div class="sk"></div>').join('');
 
