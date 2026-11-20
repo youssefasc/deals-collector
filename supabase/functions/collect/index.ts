@@ -150,7 +150,7 @@ async function etisalat(c: any): Promise<Step> {
     const stock = p.available ?? (p.quantity == null ? true : p.quantity > 0);
     items.push({ store: "etisalat", pid: String(pid), title: String(name).slice(0, 300), image: img,
       url: `https://www.eand.com.eg/eshop2/#/product/${encodeURIComponent(String(name).trim().replace(/ /g, "-")).replace(/%2D/g, "-")}?pid=${pid}`,
-      price, list_price: was, discount_pct: pct(price, was), category: guessCat(`${name} ${c.cat}`),
+      price, list_price: was, discount_pct: pct(price, was), category: /mobile|device|5g/i.test(String(c.cat)) && !/watch|tab|ipad/i.test(String(name)) && /gb|ram/i.test(String(name)) ? "mobiles" : guessCat(`${name} ${c.cat}`),
       src_category: String(c.cat), in_stock: !!stock });
   }
   if (prods.length < 48 || !items.length) { c.done.push(c.cid); c.cid = null; } else c.page++;
@@ -305,23 +305,21 @@ const TE_SEEDS = ["/en/web/guest/personal/devices/mobile-phones", "/en/web/guest
   "/en/web/guest/personal/devices/5g-devices/mobile", "/en/web/guest/personal/devices/fixed-landline-phones",
   "/en/web/guest/personal/devices/usb-modems", "/en/web/guest/personal/devices/4g-routers", "/en/web/guest/personal/devices/accessories"];
 function weCards(h: string) {
+  // كل جهاز في كارت class="device_main_container": الاسم في card_title، والسعر في choose-plan-price-quantity
   const out: any[] = []; const seen = new Set<string>();
-  const re = /href="((?:https:\/\/te\.eg)?\/[^"]*?\/w\/([a-z0-9-]+))"/gi; let m;
-  while ((m = re.exec(h))) {
-    const slug = m[2]; if (seen.has(slug)) continue;
-    // الكارت = المنطقة حوالين اللينك: الاسم والصورة والسعر
-    const from = Math.max(0, m.index - 3500), to = Math.min(h.length, m.index + 2500);
-    const win = h.slice(from, to);
-    const prices = [...win.matchAll(/([\d,]{2,}(?:\.\d+)?)\s*(?:EGP|EPG|جنيه)/gi)].map((x) => num(x[1])!).filter((x) => x > 0);
-    if (!prices.length) continue;
-    seen.add(slug);
-    const imgs = [...win.matchAll(/<img[^>]+(?:data-src|src)="([^"]+)"/gi)].map((x) => x[1]).filter((u) => !/group-\d+|logo|icon|\.svg/i.test(u));
-    const strike = win.match(/<(?:del|s|strike)[^>]*>[^<]*?([\d,]{2,})/i);
-    const was = strike ? num(strike[1]) : null;
-    const price = was ? Math.min(...prices.filter((p) => p !== was), was) : prices[0];
-    out.push({ slug, url: (m[1].startsWith("http") ? "" : TE) + m[1], price, was: was && was > price ? was : null,
-      img: imgs.length ? (imgs[imgs.length - 1].startsWith("http") ? imgs[imgs.length - 1] : TE + imgs[imgs.length - 1]) : null,
-      name: slug.replace(/-/g, " ").replace(/\b\w/g, (x) => x.toUpperCase()), oos: /out of stock|غير متوفر|نفذ/i.test(win) });
+  for (const card of h.split('class="device_main_container"').slice(1)) {
+    const c = card.slice(0, 12000);
+    const link = c.match(/href="((?:https:\/\/te\.eg)?\/[^"]*?\/w\/([a-z0-9-]+))"/i);
+    if (!link || seen.has(link[2])) continue;
+    const nums = [...c.matchAll(/choose-plan-price-quantity">\s*(?:<span>)?\s*([\d,]+(?:\.\d+)?)/g)].map((x) => num(x[1])!).filter((x) => x > 0);
+    if (!nums.length) continue;
+    seen.add(link[2]);
+    const name = ((c.match(/card_title"[^>]*>\s*<div>\s*([^<]+?)\s*<\/div>/) || [])[1] || link[2].replace(/-/g, " ")).trim();
+    const img = (c.match(/<img[^>]+src="([^"]+)"/) || [])[1] || null;
+    const price = nums.length > 1 ? Math.min(...nums) : nums[0];
+    const was = nums.length > 1 && Math.max(...nums) > price ? Math.max(...nums) : null;
+    out.push({ slug: link[2], url: (link[1].startsWith("http") ? "" : TE) + link[1], price, was,
+      img: img ? (img.startsWith("http") ? img : TE + img) : null, name, oos: /out of stock|غير متوفر|نفذ/i.test(c) });
   }
   return out;
 }

@@ -78,8 +78,15 @@ _STORE_OF = {"dream2000": "dream2000", "dubaiphone": "dubaiphone", "2b": "2b", "
              "now": "amazon_now", "resale": "amazon_resale", "vodafone": "vodafone", "we": "we", "etisalat": "etisalat"}
 
 
+ONLY_STORES = {x.strip() for x in os.environ.get("ONLY_STORES", "").split(",") if x.strip()}
+
+
 async def gate(name: str):
-    """بيوقف اللفة لو اتقفلت من لوحة التحكم (أو لو المتجر بتاعها اتقفل، أو الجامع كله واقف)."""
+    """بيوقف اللفة لو اتقفلت من لوحة التحكم (أو لو المتجر بتاعها اتقفل، أو الجامع كله واقف).
+    ONLY_STORES: لو متحدد، الجامع ده بيشتغل على المتاجر دي بس (الباقي بيجمعه الجامع السحابي)."""
+    if ONLY_STORES and name not in ONLY_STORES and _STORE_OF.get(name, name) not in ONLY_STORES:
+        while True:
+            await asyncio.sleep(3600)
     while CFG.get("paused") or CFG.get("off_" + name) or CFG.get("off_store_" + _STORE_OF.get(name, "")):
         await asyncio.sleep(10)
 
