@@ -852,7 +852,26 @@ def _resources() -> dict:
         else:
             cpu_avg = round((usec - _RES["cpu0"]) / 1e6 / max(1, time.time() - _RES["t0"]), 2)
     import os as _os
-    return {"mem_mb": cur_mb, "peak_mb": peak_mb, "cpu_cores_avg": cpu_avg,
+    rx = tx = None
+    net = rd("/proc/self/net/dev")
+    if net:
+        rx = tx = 0
+        for line in net.splitlines()[2:]:
+            name, data = line.split(":", 1)
+            if name.strip() == "lo":
+                continue
+            f = data.split()
+            rx += int(f[0]); tx += int(f[8])
+    if rx is not None:
+        if _RES.get("rx0") is None:
+            _RES["rx0"], _RES["tx0"], _RES["n0"] = rx, tx, time.time()
+        el = max(1, time.time() - _RES["n0"])
+        net_mb = round((rx - _RES["rx0"] + tx - _RES["tx0"]) / 2**20, 1)
+        net_info = {"net_mb_total": net_mb, "net_mb_per_hour": round(net_mb / el * 3600, 1),
+                    "down_mb": round((rx - _RES["rx0"]) / 2**20, 1), "up_mb": round((tx - _RES["tx0"]) / 2**20, 1), "net_minutes": round(el / 60, 1)}
+    else:
+        net_info = {}
+    return {**net_info, "mem_mb": cur_mb, "peak_mb": peak_mb, "cpu_cores_avg": cpu_avg,
             "host_cpus": _os.cpu_count(), "arch": __import__("platform").machine().lower(), "os": __import__("platform").system(), "at": time.time()}
 
 
