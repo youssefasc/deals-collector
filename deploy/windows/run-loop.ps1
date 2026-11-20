@@ -29,6 +29,30 @@ function Stop-Collector($p) {
     Where-Object { $_.ExecutablePath -like "*ms-playwright*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
+# وضع الدفعات: الجامع يشتغل RUN_MINUTES دقيقة كل EVERY_HOURS ساعة (توفير النت). لو مش متحددين يشتغل على طول.
+$RunMin = [int]($env:RUN_MINUTES | ForEach-Object { if ($_) { $_ } else { 0 } })
+$EveryH = [double]($env:EVERY_HOURS | ForEach-Object { if ($_) { $_ } else { 0 } })
+if ($RunMin -gt 0 -and $EveryH -gt 0) {
+  while ($true) {
+    $slot = Get-Date
+    try { git -C $Src fetch -q origin main 2>$null; if ((git -C $Src rev-parse HEAD) -ne (git -C $Src rev-parse origin/main)) {
+          L "update found → pulling"; git -C $Src reset -q --hard origin/main
+          & $Py -m pip install -q -r (Join-Path $Src "requirements.txt") 2>$null
+          Copy-Item (Join-Path $Src "deploy\windows\run-loop.ps1") (Join-Path $App "run-loop.ps1") -Force } } catch { L "update failed: $_" }
+    $p = Start-Collector
+    $end = $slot.AddMinutes($RunMin)
+    while ((Get-Date) -lt $end) {
+      Start-Sleep -Seconds 30
+      foreach ($f in "$Log.out","$Log.err") { if (Test-Path $f) { Get-Content $f -ErrorAction SilentlyContinue | Out-File -Append -Encoding UTF8 $Log; Clear-Content $f -ErrorAction SilentlyContinue } }
+      if ($p.HasExited) { L "collector exited early (code $($p.ExitCode)) → restart"; Stop-Collector $null; Start-Sleep 20; $p = Start-Collector }
+    }
+    Stop-Collector $p
+    L "batch done → next run at $($slot.AddHours($EveryH).ToString('HH:mm'))"
+    $wait = ($slot.AddHours($EveryH) - (Get-Date)).TotalSeconds
+    if ($wait -gt 0) { Start-Sleep -Seconds ([int]$wait) }
+  }
+}
+
 $p = Start-Collector
 $started = Get-Date
 $lastUpdate = Get-Date

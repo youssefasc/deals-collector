@@ -1,18 +1,14 @@
-name: اختبار التشغيل على Windows
+name: اختبار برنامج الويندوز
 
-# بيشغّل deploy/windows/install.ps1 على جهاز Windows نضيف بنفس الخطوات اللي هتحصل على كمبيوترك،
-# ويتأكد إن الجامع اشتغل فعلاً، وإن الـ loop بيرجّعه لو وقع.
+# بيشغّل deploy/windows/install.ps1 على جهاز Windows نضيف بنفس خطوات كمبيوترك،
+# ويتأكد من وضع الدفعات (يشتغل شوية ويقف ويرجع لوحده).
 on:
   workflow_dispatch:
-    inputs:
-      minutes:
-        description: 'مدة ترك الجامع شغال بالدقايق'
-        default: '12'
 
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 50
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Install (same script as the PC)
@@ -21,26 +17,25 @@ jobs:
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
           GH_READ: ${{ github.token }}
         run: |
-          & .\deploy\windows\install.ps1 -Token $env:INGEST_TOKEN -GitToken $env:GH_READ
-      - name: Collector running?
+          & .\deploy\windows\install.ps1 -Token $env:INGEST_TOKEN -GitToken $env:GH_READ -NoTask
+          # اختبار سريع: دفعة دقيقتين كل ٤ دقايق
+          $e = "$env:LOCALAPPDATA\OroodCollector\collector.env"
+          (Get-Content $e) -replace '^RUN_MINUTES=.*','RUN_MINUTES=2' -replace '^EVERY_HOURS=.*','EVERY_HOURS=0.0667' | Set-Content -Encoding UTF8 $e
+          Get-Content $e | Select-String 'ONLY_STORES|RUN_MINUTES|EVERY_HOURS'
+          Start-Process powershell -ArgumentList '-NoProfile','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',"$env:LOCALAPPDATA\OroodCollector\run-loop.ps1"
+      - name: Batch mode works (runs, stops, starts again)
         shell: powershell
         run: |
+          Start-Sleep 150
+          $running = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' }).Count
+          "during batch: $running collector processes"
+          Start-Sleep 60
+          $stopped = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' }).Count
+          "between batches: $stopped collector processes"
           Start-Sleep 120
-          Get-ScheduledTask -TaskName OroodCollector | Select-Object TaskName,State | Format-Table
-          Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' } | Select-Object ProcessId,CommandLine | Format-List
-          Get-Content "$env:LOCALAPPDATA\OroodCollector\collector.log" -Tail 25
-      - name: Crash recovery (kill python → loop restarts it)
-        shell: powershell
-        run: |
-          Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-          Start-Sleep 120
-          $n = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' }).Count
-          "collector processes after kill: $n"
-          if ($n -lt 1) { throw "loop did not restart the collector" }
-          if ($n -gt 2) { throw "duplicate collectors running" }
-      - name: Let it collect
-        shell: powershell
-        run: |
-          Start-Sleep ([int]"${{ github.event.inputs.minutes || '12' }}" * 60)
-          Get-Content "$env:LOCALAPPDATA\OroodCollector\collector.log" -Tail 30
-          $b = Join-Path $env:TEMP "collector_alive"; if (Test-Path $b) { "heartbeat: $((Get-Item $b).LastWriteTime)" } else { throw "no heartbeat" }
+          $again = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*main.py*' }).Count
+          "next batch: $again collector processes"
+          Get-Content "$env:LOCALAPPDATA\OroodCollector\collector.log" -Tail 40
+          if ($running -lt 1) { throw "collector did not start" }
+          if ($stopped -ne 0) { throw "collector did not stop between batches" }
+          if ($again -lt 1) { throw "next batch did not start" }
