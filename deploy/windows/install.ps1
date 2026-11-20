@@ -21,7 +21,7 @@ function Refresh-Path {
 function Need($exe, $wingetId) {
   if (-not (Get-Command $exe -ErrorAction SilentlyContinue)) {
     Say "تثبيت $wingetId ..."
-    winget install --id $wingetId -e --silent --scope user --accept-package-agreements --accept-source-agreements | Out-Null
+    winget install --id $wingetId -e --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
     Refresh-Path
     if (-not (Get-Command $exe -ErrorAction SilentlyContinue)) { throw "$exe ماتثبتش — ثبّته يدوي وشغّل الملف تاني" }
   }
