@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        store: [carrefour, vodafone, orange]
+        store: [carrefour, vodafone, orange, amazon]
     concurrency:
       group: collector-${{ matrix.store }}
       cancel-in-progress: false
@@ -29,7 +29,7 @@ jobs:
       SUPABASE_URL: https://unwzvhdwxmlmknvgvrhp.supabase.co
       SUPABASE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3p2aGR3eG1sbWtudmd2cmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwMjQ5MzUsImV4cCI6MjExMDYwMDkzNX0.g_500nSaAP5lF6N69ofsvozust1BpzbBU7kZXtooAyM
       INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
-      AMAZON_MAIN: '0'
+      AMAZON_MAIN: ${{ matrix.store == 'amazon' && '1' || '0' }}
       DB_CONCURRENCY: '1'
       SWEEP_WORKERS: '2'
       ONLY_STORES: ${{ matrix.store }}
