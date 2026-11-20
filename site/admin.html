@@ -109,7 +109,14 @@ async dash(){
       <div class="stat"><small>اتفحص آخر 10 دقايق</small><b>${fmt(s.seen_10m)}</b></div>
       <div class="stat"><small>مخفي</small><b>${fmt(s.hidden)}</b></div>
       <div class="stat"><small>مميّز ⭐</small><b>${fmt(s.featured)}</b></div><div class="stat"><small>كوبونات شغّالة</small><b>${fmt(s.coupons)}</b></div></div></div>
-    <div class="card"><h3>حالة جامع كل متجر</h3><p class="mute">بيتحدث كل دقيقة من الجامع نفسه${s.collections_at?' · آخر تحديث لمجموعات العروض '+ago(s.collections_at):''}</p><div class="grid">${(()=>{const H=s.health||{};const off=s.config||{};const now=Date.now()/1000;
+    <div class="card"><h3>☁️ الجامع السحابي (مجاني — شغال كل دقيقة)</h3><p class="mute">بيشتغل على Supabase من غير أي جهاز. لو متجر فشل بيستنى ويرجع لوحده، والباقي مكمّل.</p><div class="grid">${(s.cloud_jobs||[]).map(j=>{const now=Date.now();const ok=j.last_ok?Date.parse(j.last_ok):0;const nxt=Date.parse(j.next_run);
+        const st=!j.enabled?['⏸ موقوف','#2a2a2a','#bbb']:j.fail_count>0?['⏳ بيستنى ويجرب تاني','#2c2414','#ffd08a']:ok&&now-ok<3*3600e3?['● شغّال','#11291b','#7ff0a7']:['… مستني دوره','#1d2230','#9fb3ff'];
+        return `<div class="stat"><small>${esc((STORES.find(x=>x[0]===j.store)||[,j.store])[1])}</small><b><span class="tag" style="background:${st[1]};color:${st[2]}">${st[0]}</span></b>
+          <small>آخر نجاح: ${j.last_ok?ago(j.last_ok):'—'}</small>
+          <small>${j.pass_items?'اللفة الحالية: '+fmt(j.pass_items)+' منتج':j.last_pass_items!=null?'آخر لفة كاملة: '+fmt(j.last_pass_items)+' منتج في '+Math.round((j.last_pass_secs||0)/60)+' د':''}</small>
+          <small>${nxt>now?'اللفة الجاية: '+new Date(nxt).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'}):'شغال دلوقتي'} · كل ${j.interval_min} د</small>
+          ${j.fail_count>0&&j.last_err?`<small style="color:#ff9aa6">آخر خطأ: ${esc(j.last_err.slice(0,90))}</small>`:''}</div>`}).join('')}</div></div>
+    <div class="card"><h3>🖥 متاجر المتصفح (GitHub — ٣ مرات في اليوم)</h3><p class="mute">2B ودبي فون وكارفور وفودافون وأورنج${s.collections_at?' · آخر تحديث لمجموعات العروض '+ago(s.collections_at):''}</p><div class="grid">${(()=>{const H=s.health||{};const off=s.config||{};const now=Date.now()/1000;
       return STORES.filter(x=>H[x[0]]||!off['off_store_'+x[0]]&&['amazon','amazon_now','amazon_resale','carrefour','btech','dream2000','dubaiphone','talabat','2b','orange'].includes(x[0])).map(([k,n])=>{const h=H[k]||{};const stopped=off['off_store_'+k];
         const st=stopped?['⏸ موقوف من اللوحة','#2a2a2a','#bbb']:h.status==='backoff'?['⏳ مستني يجرب تاني','#2c2414','#ffd08a']:h.status==='blocked'?['⛔ المتجر رافض (403)','#2c1418','#ff9aa6']:h.status==='error'?['⚠️ خطأ','#2c2414','#ffd08a']:h.last_ok&&now-h.last_ok<1800?['● شغّال','#11291b','#7ff0a7']:['… مستني دورته','#1d2230','#9fb3ff'];
         const tot=(h.ok||0)+(h.fail||0);const rate=tot?Math.round((h.ok||0)/tot*100):null;
