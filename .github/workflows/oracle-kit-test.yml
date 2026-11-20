@@ -1,0 +1,47 @@
+name: اختبار ملفات تثبيت Oracle
+
+# بيشغّل deploy/oracle/install.sh على سيرفر Ubuntu نضيف زي ما Oracle هيشغله بالظبط،
+# ويتأكد إن الجامع اشتغل، وإن المراقب بيرجّعه لو وقع، وإن التحديث التلقائي شغال.
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'مدة ترك الجامع شغال بالدقايق'
+        default: '12'
+
+jobs:
+  kit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Prepare env file (same as cloud-init)
+        env:
+          INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          GH_READ: ${{ github.token }}
+        run: |
+          sudo mkdir -p /opt/collector
+          printf 'INGEST_TOKEN=%s\nGITHUB_TOKEN=%s\n' "$INGEST_TOKEN" "$GH_READ" | sudo tee /opt/collector/collector.env >/dev/null
+          sudo chmod 600 /opt/collector/collector.env
+      - name: cloud-init steps
+        run: |
+          sudo bash -c 'set -a; . /opt/collector/collector.env; git clone -q https://x-access-token:${GITHUB_TOKEN}@github.com/youssefasc/deals-collector.git /opt/collector/src'
+          sudo bash /opt/collector/src/deploy/oracle/install.sh
+      - name: Collector running?
+        run: |
+          sleep 90; sudo docker ps --filter name=collector --format '{{.Status}}'; sudo docker logs --tail 15 collector
+          systemctl list-timers 'collector-*' --no-pager
+      - name: Watchdog brings it back after crash
+        run: |
+          sudo docker kill collector; sleep 3
+          sudo /usr/local/bin/collector-watchdog
+          sleep 5; sudo docker ps --filter name=collector --format 'after watchdog: {{.Status}}'
+      - name: Auto-update runs cleanly
+        run: sudo /usr/local/bin/collector-update && echo "update ok"
+      - name: Let it collect
+        run: |
+          sleep $(( ${{ github.event.inputs.minutes || '12' }} * 60 ))
+          sudo docker logs --tail 25 collector
+          sudo docker stats --no-stream collector
+      - name: Stop
+        if: always()
+        run: sudo docker rm -f collector || true

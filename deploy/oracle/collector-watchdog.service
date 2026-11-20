@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart collector if it stopped or hung
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/collector-watchdog

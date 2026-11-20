@@ -1,0 +1,6 @@
+[Unit]
+Description=Pull latest collector code and redeploy if changed
+After=docker.service network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/collector-update

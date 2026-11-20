@@ -1,0 +1,14 @@
+#cloud-config
+# الصقه في Oracle Cloud وقت إنشاء السيرفر:
+#   Create instance → Show advanced options → Management → Paste cloud-init script
+# غيّر السطرين اللي فيهم «ضع_...» بس — الباقي كله أوتوماتيك، والجامع هيشتغل لوحده خلال ~10 دقايق.
+write_files:
+  - path: /opt/collector/collector.env
+    permissions: '0600'
+    content: |
+      INGEST_TOKEN=ضع_مفتاح_الجامع_هنا
+      GITHUB_TOKEN=ضع_توكن_GitHub_للقراءة_هنا
+runcmd:
+  - [bash, -c, "apt-get update -y && apt-get install -y git docker.io"]
+  - [bash, -c, "set -a; . /opt/collector/collector.env; git clone -q https://x-access-token:${GITHUB_TOKEN}@github.com/youssefasc/deals-collector.git /opt/collector/src"]
+  - [bash, /opt/collector/src/deploy/oracle/install.sh]
