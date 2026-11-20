@@ -1,0 +1,39 @@
+name: جامع المنتجات (مجاني)
+
+# بيشتغل أوتوماتيك كذا مرة في اليوم، كل مرة ١٨ دقيقة (عشان يفضل جوه الدقايق المجانية)، وبيكتب المنتجات في Supabase.
+# تقدر تشغّله يدوي من تبويب Actions ثم Run workflow.
+on:
+  schedule:
+    - cron: '17 4,12,20 * * *'   # ٦ الصبح و٢ الضهر و١٠ بالليل بتوقيت مصر
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'مدة التشغيل بالدقايق'
+        default: '18'
+
+concurrency:
+  group: collector
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container: mcr.microsoft.com/playwright/python:v1.40.0-jammy
+    env:
+      SUPABASE_URL: https://unwzvhdwxmlmknvgvrhp.supabase.co
+      SUPABASE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3p2aGR3eG1sbWtudmd2cmhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwMjQ5MzUsImV4cCI6MjExMDYwMDkzNX0.g_500nSaAP5lF6N69ofsvozust1BpzbBU7kZXtooAyM
+      INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+      AMAZON_MAIN: '0'
+      DB_CONCURRENCY: '1'
+      SWEEP_WORKERS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: pip install --no-cache-dir -r requirements.txt
+      - name: Run collector
+        run: |
+          if [ -z "$INGEST_TOKEN" ]; then echo "::error::ضيف INGEST_TOKEN في Settings > Secrets > Actions"; exit 1; fi
+          M="${{ github.event.inputs.minutes || '18' }}"
+          timeout "$((M*60))" python main.py || [ $? -eq 124 ]
