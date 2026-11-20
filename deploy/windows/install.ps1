@@ -27,7 +27,25 @@ function Need($exe, $wingetId) {
   }
 }
 Need git "Git.Git"
-Need python "Python.Python.3.12"
+
+# بايثون: بنتجاهل اختصار متجر مايكروسوفت الوهمي (WindowsApps) وبندوّر على بايثون حقيقي
+function Find-Python {
+  $c = @(
+    (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
+    (Join-Path $env:ProgramFiles "Python312\python.exe")
+  )
+  foreach ($x in (Get-Command python -All -ErrorAction SilentlyContinue)) { if ($x.Source -notlike "*WindowsApps*") { $c += $x.Source } }
+  foreach ($x in $c) { if ($x -and (Test-Path $x)) { return $x } }
+  return $null
+}
+$SysPy = Find-Python
+if (-not $SysPy) {
+  Say "تثبيت Python ..."
+  winget install --id Python.Python.3.12 -e --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
+  Refresh-Path
+  $SysPy = Find-Python
+  if (-not $SysPy) { throw "Python ماتثبتش — ثبّته من python.org وشغّل الملف تاني" }
+}
 
 # 1) الكود — أول مرة GitHub هيفتح صفحة تسجيل دخول في المتصفح (تسجيل آمن، من غير ما تكتب باسورد هنا)
 if (-not (Test-Path (Join-Path $Src ".git"))) {
@@ -38,7 +56,8 @@ if (-not (Test-Path (Join-Path $Src ".git"))) {
 
 # 2) بيئة بايثون + المتصفح
 $Py = Join-Path $App "venv\Scripts\python.exe"
-if (-not (Test-Path $Py)) { Say "تجهيز بيئة بايثون ..."; python -m venv (Join-Path $App "venv") }
+if (-not (Test-Path $Py)) { Say "تجهيز بيئة بايثون ..."; & $SysPy -m venv (Join-Path $App "venv") }
+if (-not (Test-Path $Py)) { throw "بيئة بايثون ماتعملتش" }
 Say "تثبيت المكتبات ..."
 & $Py -m pip install -q --upgrade pip
 & $Py -m pip install -q -r (Join-Path $Src "requirements.txt")
