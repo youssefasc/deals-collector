@@ -4,7 +4,7 @@ const H={apikey:KEY,Authorization:'Bearer '+KEY};
 const CATS=[['','🛍️','الكل'],['mobiles','📱','موبايلات'],['laptops','💻','لابتوب'],['tvs','📺','شاشات'],['appliances','🧺','أجهزة منزلية'],['audio','🎧','سماعات'],['smartwatches','⌚','ساعات ذكية'],['tablets','📲','تابلت'],['gaming','🎮','ألعاب فيديو'],['grocery','🛒','سوبرماركت'],['beauty','💄','جمال'],['health','🧴','صحة ونظافة'],['home','🏠','البيت والمطبخ'],['fashion','👟','موضة'],['kids','🧸','أطفال'],['sports','⚽','رياضة'],['electronics','🔌','إلكترونيات'],['computer_acc','🖱️','إكسسوارات كمبيوتر'],['mobile_acc','🔋','إكسسوارات موبايل'],['auto','🚗','عربيات'],['books_office','✏️','أدوات مكتبية'],['other','📦','أخرى']];
 const RAILS=[['mobiles','📱 موبايلات بخصم'],['laptops','💻 لابتوبات'],['tvs','📺 شاشات'],['appliances','🧺 أجهزة منزلية'],['audio','🎧 سماعات'],['gaming','🎮 جيمنج'],['grocery','🛒 سوبرماركت'],['beauty','💄 جمال وعناية'],['home','🏠 البيت والمطبخ'],['fashion','👟 موضة']];
 const SORTS=[['new','🆕 الأحدث'],['score','🔥 أقوى لقطة'],['pct','٪ أعلى خصم'],['drop','📉 أكبر نزول'],['low','⭐ أقل سعر في تاريخه'],['cheap','💸 الأرخص'],['exp','💎 الأغلى']];
-const TYPES=[['','كل العروض'],['drop','📉 نزل سعره'],['lowest','⭐ أقل سعر تاريخي'],['disc','🏷 عليه خصم']];
+const TYPES=[['','كل العروض'],['fresh','🆕 وصل حالاً'],['drop','📉 نزل سعره'],['lowest','⭐ أقل سعر تاريخي'],['disc','🏷 عليه خصم']];
 const SINCE=[[0,'أي وقت'],[1,'آخر ساعة'],[24,'آخر 24 ساعة'],[168,'آخر أسبوع']];
 const PCTS=[[0,'أي خصم'],[20,'+20%'],[40,'+40%'],[60,'+60%'],[80,'+80%']];
 const PAGE=30;
@@ -42,7 +42,7 @@ function card(p,live){
   const sc=p.score||0;
   return `<a class="card${fresh?' fresh':''}" href="#/p/${encodeURIComponent(p.id)}">
   <div class="img">${p.image?`<img loading="lazy" decoding="async" src="${esc(thumb(p.image))}" alt="" onload="this.classList.add('ok')" onerror="this.outerHTML='<span class=noimg>📦</span>'">`:'<span class="noimg">📦</span>'}
-  ${pct>0?`<span class="off">-${pct}%</span>`:''}${p.fake_discount?'<span class="fakeb">⚠️ خصم مشكوك</span>':atLow?'<span class="lowb">⭐ أقل سعر</span>':''}${p.drop_pct>0?`<span class="dropb">↓ نزل ${p.drop_pct}%</span>`:''}</div>
+  ${pct>0?`<span class="off">-${pct}%</span>`:''}${p.fake_discount?'<span class="fakeb">⚠️ خصم مشكوك</span>':atLow?'<span class="lowb">⭐ أقل سعر</span>':''}${p.drop_pct>0?`<span class="dropb">↓ نزل ${p.drop_pct}%</span>`:''}${p.first_seen&&Date.now()-new Date(p.first_seen)<864e5?`<span class="newb">🆕 ${ago(p.first_seen)}</span>`:''}</div>
   <div class="body"><div class="title">${esc(p.title)}</div>
   <div class="price"><b>${fmt(pr)} <small>ج.م</small></b>${was?`<s>${fmt(was)}</s>`:''}</div>
   ${was&&was-pr>=1?`<div class="save">وفّر ${fmt(was-pr)} ج</div>`:''}
@@ -79,6 +79,7 @@ function home(){setNav('home');document.body.classList.remove('pp-open');clearIn
   <section class="sec"><div class="cats" id="homeCats"></div></section>
   <section class="sec" id="featSec" hidden><div class="sec-h"><h2 id="featTitle">${esc(s.featured_title||'⭐ اخترنالك')}</h2></div><div class="rail" id="featRail"></div></section>
   <section class="sec"><div class="sec-h"><div><h2>🔥 أقوى لقطات النهارده</h2><p>أعلى عروض في قوة اللقطة آخر 24 ساعة</p></div><a href="#/deals?sort=score">شوف الكل ←</a></div><div class="rail" id="hotRail">${skel(6)}</div></section>
+  <section class="sec"><div class="sec-h"><div><h2>🆕 وصل حالاً</h2><p>منتجات لسه متضافة على المنصة من كل المتاجر — بتتحدث لوحدها</p></div><a href="#/deals?type=fresh">شوف الكل ←</a></div><div class="rail" id="freshRail">${skel(6)}</div></section>
   <section class="sec"><div class="sec-h"><div><h2>📉 نزل سعره دلوقتي</h2><p>سعرها نزل بجد عن آخر سعر سجلناه</p></div><a href="#/deals?type=drop">شوف الكل ←</a></div><div class="rail" id="dropRail">${skel(6)}</div></section>
   <section class="sec" id="rvSec" hidden><div class="sec-h"><div><h2>👀 كمّل من حيث وقفت</h2><p>المنتجات اللي اتفرجت عليها</p></div><a href="javascript:void 0" id="rvClr">امسح</a></div><div class="rail" id="rvRail"></div></section>
   <section class="sec" id="cpSec" hidden><div class="sec-h"><div><h2>🎟 كوبونات الخصم</h2><p>دوس على الكود وهيتنسخ</p></div><a href="#/coupons">كل الكوبونات ←</a></div><div class="cprail" id="cpRail"></div></section>
@@ -90,7 +91,8 @@ function home(){setNav('home');document.body.classList.remove('pp-open');clearIn
   $('homeCats').innerHTML=visibleCats().slice(1).map(([k,i,n])=>`<a class="cat" href="#/deals?cat=${k}">${i} ${n}</a>`).join('');
   $('storeGrid').onclick=e=>{const a=e.target.closest('.store');if(a&&a.dataset.soon){e.preventDefault();toast('متجر '+a.dataset.soon+' هيتضاف قريباً 🔜')}};
   const cached=HOME||ls.get('home_v2');if(cached)drawHome(cached);
-  const refresh=()=>getHome().then(drawHome).catch(()=>{});refresh();
+  const fresh=()=>cdn(freshQuery(0,20).replace(/&store=[^&]*|&category=[^&]*|&discount_pct=[^&]*/g,'')).then(r=>{const el=$('freshRail');if(el&&r.length)el.innerHTML=r.map(p=>card(p)).join('')}).catch(()=>{});
+  const refresh=()=>{getHome().then(drawHome).catch(()=>{});fresh()};refresh();
   timer=setInterval(()=>{if(!document.hidden)refresh()},30000);
   document.title='عروض متتفوتش — أفضل عروض المتاجر المصرية في مكان واحد';
 }
@@ -112,7 +114,15 @@ function drawHome(h){
 }
 
 /* ---------- feed ---------- */
+function freshQuery(off,limit){
+  let q='products?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change,first_seen&hidden=is.false&in_stock=is.true&image=not.is.null';
+  if(st.store)q+='&store=eq.'+st.store;else if(st.stores&&st.stores.length)q+='&store=in.('+st.stores.join(',')+')';
+  if(st.cat)q+='&category=eq.'+st.cat;
+  if(st.pct)q+='&discount_pct=gte.'+st.pct;
+  return q+'&order=first_seen.desc&limit='+(limit||PAGE)+'&offset='+(off||0);
+}
 function buildQuery(off){
+  if(st.type==='fresh'&&!st.q)return freshQuery(off);
   if(st.q){ // البحث بيدوّر في كل المنتجات، وكل كلمة لوحدها (مش الجملة لازقة)
     const words=st.q.replace(/[*,()%.]/g,' ').split(/\s+/).filter(w=>w.length>0).slice(0,6);
     let q='products?select=id,store,title,image,price,list_price,prev_price,discount_pct,drop_pct,low_price,score,fake_discount,last_change&hidden=is.false&in_stock=is.true';
@@ -180,7 +190,7 @@ async function liveTop(){ // refresh first page silently, prepend new items
 function activeFilters(){return (st.cat?1:0)+(st.pct?1:0)+(st.since?1:0)+((st.stores||[]).length?1:0)}
 function feed(){setNav(st.type==='drop'?'drop':'deals');document.body.classList.remove('pp-open');clearInterval(timer);
   const app=$('app');const sn=st.store?storeName(st.store):'';const cn=st.cat?(CATS.find(c=>c[0]===st.cat)||[])[2]:'';
-  const title=st.q?`نتايج «<span>${esc(st.q)}</span>»`:st.type==='drop'?'📉 <span>نزل سعره</span> دلوقتي':sn?`عروض <span>${esc(sn)}</span>`:cn?`عروض <span>${esc(cn)}</span>`:'أحدث <span>العروض</span>';
+  const title=st.q?`نتايج «<span>${esc(st.q)}</span>»`:st.type==='fresh'?'🆕 <span>وصل حالاً</span> — أحدث المنتجات':st.type==='drop'?'📉 <span>نزل سعره</span> دلوقتي':sn?`عروض <span>${esc(sn)}</span>`:cn?`عروض <span>${esc(cn)}</span>`:'أحدث <span>العروض</span>';
   const cnt=st.store&&HOME&&HOME.counts?HOME.counts[st.store]:HOME&&HOME.total;const cntAll=st.store&&HOME&&HOME.all_counts?HOME.all_counts[st.store]:HOME&&HOME.all_total;
   app.innerHTML=`<div class="fhead"><h1>${title}</h1><p>${cntAll?fmt(cntAll)+' منتج بنتابعه · ':''}${cnt?fmt(cnt)+' منهم عليه عرض · ':''}بيتحدث لحظياً ⚡</p></div>
   <div class="bar"><div class="chips" id="typeChips"></div>
