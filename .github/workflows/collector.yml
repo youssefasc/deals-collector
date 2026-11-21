@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        store: [carrefour, vodafone, orange, amazon]
+        store: [carrefour, vodafone, orange]  # amazon: موقوف مؤقتاً — بيضغط قاعدة البيانات المجانية
     concurrency:
       group: collector-${{ matrix.store }}
       cancel-in-progress: false
