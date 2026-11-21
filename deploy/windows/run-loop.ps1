@@ -5,6 +5,8 @@ $Src = Join-Path $App "src"
 $Py  = Join-Path $App "venv\Scripts\python.exe"
 $Log = Join-Path $App "collector.log"
 $Beat = Join-Path $env:TEMP "collector_alive"
+$Stat = Join-Path $App "status.txt"
+function S($m) { Set-Content -Encoding UTF8 $Stat $m }
 function L($m) { "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [loop] $m" | Out-File -Append -Encoding UTF8 $Log }
 
 # المتغيرات من الملف
@@ -38,7 +40,8 @@ if ($RunMin -gt 0 -and $EveryH -gt 0) {
     try { git -C $Src fetch -q origin main 2>$null; if ((git -C $Src rev-parse HEAD) -ne (git -C $Src rev-parse origin/main)) {
           L "update found → pulling"; git -C $Src reset -q --hard origin/main
           & $Py -m pip install -q -r (Join-Path $Src "requirements.txt") 2>$null
-          Copy-Item (Join-Path $Src "deploy\windows\run-loop.ps1") (Join-Path $App "run-loop.ps1") -Force } } catch { L "update failed: $_" }
+          Copy-Item (Join-Path $Src "deploy\windows\run-loop.ps1") (Join-Path $App "run-loop.ps1") -Force; Copy-Item (Join-Path $Src "deploy\windows\status.ps1") (Join-Path $App "status.ps1") -Force } } catch { L "update failed: $_" }
+    S ""
     $p = Start-Collector
     $end = $slot.AddMinutes($RunMin)
     while ((Get-Date) -lt $end) {
@@ -48,6 +51,7 @@ if ($RunMin -gt 0 -and $EveryH -gt 0) {
     }
     Stop-Collector $p
     L "batch done → next run at $($slot.AddHours($EveryH).ToString('HH:mm'))"
+    S "مستني الدفعة الجاية الساعة $($slot.AddHours($EveryH).ToString('h:mm tt'))"
     $wait = ($slot.AddHours($EveryH) - (Get-Date)).TotalSeconds
     if ($wait -gt 0) { Start-Sleep -Seconds ([int]$wait) }
   }
@@ -79,7 +83,7 @@ while ($true) {
         Stop-Collector $p
         git -C $Src reset -q --hard origin/main
         & $Py -m pip install -q -r (Join-Path $Src "requirements.txt") 2>$null
-        Copy-Item (Join-Path $Src "deploy\windows\run-loop.ps1") (Join-Path $App "run-loop.ps1") -Force
+        Copy-Item (Join-Path $Src "deploy\windows\run-loop.ps1") (Join-Path $App "run-loop.ps1") -Force; Copy-Item (Join-Path $Src "deploy\windows\status.ps1") (Join-Path $App "status.ps1") -Force
         $p = Start-Collector; $started = Get-Date
       }
     } catch { L "update check failed: $_" }

@@ -89,6 +89,7 @@ icacls $EnvFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
 
 # 4) سكريبت التشغيل الدائم
 Copy-Item (Join-Path $Src "deploy\windows\run-loop.ps1") (Join-Path $App "run-loop.ps1") -Force
+Copy-Item (Join-Path $Src "deploy\windows\status.ps1") (Join-Path $App "status.ps1") -Force
 
 # 5) الكمبيوتر مايناميش وهو على الشاحن
 powercfg /change standby-timeout-ac 0 2>$null
@@ -103,6 +104,14 @@ if (-not $NoTask) {
          -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
   Register-ScheduledTask -TaskName "OroodCollector" -Action $act -Trigger $trg -Settings $set -Force | Out-Null
   Start-ScheduledTask -TaskName "OroodCollector"
+  # شباك الحالة بالعربي: بيفتح مع فتح الكمبيوتر + اختصار على سطح المكتب
+  $sact = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$App\status.ps1`""
+  Register-ScheduledTask -TaskName "OroodCollectorStatus" -Action $sact -Trigger $trg -Force | Out-Null
+  $ws = New-Object -ComObject WScript.Shell
+  $lnk = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath("Desktop")) "حالة الجامع.lnk"))
+  $lnk.TargetPath = "powershell.exe"; $lnk.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$App\status.ps1`""
+  $lnk.IconLocation = "shell32.dll,22"; $lnk.Save()
+  Start-Process powershell.exe -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$App\status.ps1`""
 }
-Say "خلصنا ✅  الجامع شغال في الخلفية ومش هيظهر له شباك."
+Say "خلصنا ✅  الجامع شغال — وشباك «حالة الجامع» هيوريك بيعمل إيه (وفيه اختصار على سطح المكتب)."
 Say "اللوج هنا: $App\collector.log"
