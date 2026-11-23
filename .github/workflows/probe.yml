@@ -7,12 +7,13 @@ on:
       bytes: {default: '3000'}
       offset: {default: '0'}
       hdrs: {default: ''}
+      script: {default: 'tools/probe.py'}
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/probe.py
+      - run: python3 ${{ github.event.inputs.script }} ${{ github.event.inputs.script != 'tools/probe.py' && github.event.inputs.urls || '' }}
         env:
           URLS: ${{ github.event.inputs.urls }}
           GREP: ${{ github.event.inputs.grep }}
