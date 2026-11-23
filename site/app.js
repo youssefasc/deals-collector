@@ -97,6 +97,7 @@ function home(){setNav('home');document.body.classList.remove('pp-open');clearIn
   document.title='عروض متتفوتش — أفضل عروض المتاجر المصرية في مكان واحد';
 }
 function drawHome(h){
+  {const el=$('freshRail');if(el&&h&&h.fresh&&h.fresh.length&&el.querySelector('.sk'))el.innerHTML=h.fresh.map(p=>card(p)).join('')}
   if(!$('hotRail'))return;const c=h.counts||{},ac=h.all_counts||{};
   $('storeGrid').innerHTML=visibleStores().map(([k,n,dom,on])=>`<a class="store ${on?'':'soon'}" href="${on?'#/deals?store='+k:'#'}" data-soon="${on?'':esc(n)}">${on?'<span class="tag"></span>':''}<span class="lg"><img src="${storeLogo(k,dom)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(n[0])}'))"></span><b>${esc(n)}</b><small>${on?(ac[k]?fmt(ac[k])+' منتج':'مباشر'):'قريباً'}</small>${on&&c[k]?`<em class="dealsn">🔥 ${fmt(c[k])} عرض</em>`:''}${on&&stale(k)?`<em class="paused">⏸ آخر تحديث ${ago(stale(k))}</em>`:on&&(h.maxdisc||{})[k]?`<em class="upto">خصم لحد ${h.maxdisc[k]}%</em>`:''}</a>`).join('');
   $('landStats').innerHTML=`<div><b>${fmt(h.all_total||h.total)}</b><span>منتج بنتابعه</span></div><div><b>${fmt(h.total)}</b><span>عرض شغال</span></div><div><b>${visibleStores().filter(x=>x[3]).length}</b><span>متجر مصري</span></div><div><b>${fmt(h.drops_24h)}</b><span>سعر نزل النهارده</span></div>`;

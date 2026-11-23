@@ -2,7 +2,7 @@ name: جامع متاجر المتصفح (مجاني)
 
 # الجامع الأساسي سحابي (Supabase Edge Function) وشغال كل دقيقة.
 # ده بيجمع المتاجر اللي محتاجة متصفح كامل (كارفور، فودافون، أورنج) على طول من غير توقف:
-# كل متجر في تشغيلة لوحده، كل تشغيلة ~٥:٥٠ ساعة، والجدولة كل ٢٠ دقيقة بتجهّز اللي بعدها (الريبو عام = دقايق مجانية).
+# كل متجر في تشغيلة لوحده، كل تشغيلة ~٥:٥٠ ساعة، وفي آخرها بتشغّل اللي بعدها على طول (الجدولة احتياطي بس).
 # 2B ودبي فون بيرفضوا سيرفرات GitHub، فبيجمعهم برنامج الويندوز (deploy/windows).
 on:
   schedule:
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        store: [carrefour, vodafone, orange]  # amazon: موقوف مؤقتاً — بيضغط قاعدة البيانات المجانية
+        store: [carrefour, vodafone, orange]
     concurrency:
       group: collector-${{ matrix.store }}
       cancel-in-progress: false
@@ -43,3 +43,16 @@ jobs:
           if [ -z "$INGEST_TOKEN" ]; then echo "::error::ضيف INGEST_TOKEN في Settings > Secrets > Actions"; exit 1; fi
           M="${{ github.event.inputs.minutes || '350' }}"
           timeout "$((M*60))" python main.py || [ $? -eq 124 ]
+
+  next:
+    # أول ما التشغيلة تخلص، بتشغّل اللي بعدها فوراً (من غير ما نستنى جدولة GitHub اللي بتتأخر ساعات)
+    needs: collect
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh workflow run collector.yml -R ${{ github.repository }} --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
+
