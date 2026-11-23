@@ -141,8 +141,11 @@ class Collector:
         for i in range(4):
             try:
                 r = await self.db.post(f"{SUPABASE_URL}/rest/v1/rpc/{fn}", json={"token": INGEST_TOKEN, **payload})
-                if r.status_code == 200:
-                    return r.json()
+                if r.status_code in (200, 204):
+                    try:
+                        return r.json() if r.content else True
+                    except Exception:
+                        return True
                 log("DB", fn, r.status_code, r.text[:150])
             except Exception as e:
                 log("DB exception", fn, str(e)[:120])
