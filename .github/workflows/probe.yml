@@ -17,9 +17,9 @@ jobs:
       - run: |
           for u in ${{ github.event.inputs.urls }}; do
             echo "=================== $u"
-            rm -f /tmp/b /tmp/h; curl -sS -L --compressed -m 25 -o /tmp/b -D /tmp/h -w "STATUS %{http_code} SIZE %{size_download}\n" \
+            rm -f /tmp/b /tmp/h; curl -sS -L -H "Accept-Encoding: gzip" --compressed -m 25 -o /tmp/b -D /tmp/h -w "STATUS %{http_code} SIZE %{size_download}\n" \
               -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" \
               -H "Accept-Language: ar-EG,ar;q=0.9,en;q=0.8" "$u" || true
             grep -iE '^(content-type|server|location|x-)' /tmp/h | head -8
-            if [ -n "${{ github.event.inputs.grep }}" ]; then grep -oE "${{ github.event.inputs.grep }}" /tmp/b | sort | uniq -c | sort -rn | head -60; else head -c ${{ github.event.inputs.bytes }} /tmp/b; fi; echo
+            if [ -n "${{ github.event.inputs.grep }}" ]; then grep -aoE "${{ github.event.inputs.grep }}" /tmp/b | sort | uniq -c | sort -rn | head -60; else head -c ${{ github.event.inputs.bytes }} /tmp/b; fi; echo
           done
