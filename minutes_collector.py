@@ -23,7 +23,7 @@ INGEST_TOKEN = os.environ["INGEST_TOKEN"]
 BASE = "https://minutes.noon.com/egypt-ar"
 STORE = "noon_minutes"
 REGION = "مصر — المنطقة الافتراضية للموقع"
-RATE = float(os.environ.get("MINUTES_RATE", "1.2"))            # ثواني بين كل طلب والتاني (≈ 50 صفحة/دقيقة)
+RATE = float(os.environ.get("MINUTES_RATE", "0.6"))            # ثواني بين كل طلب والتاني (≈ 90 صفحة/دقيقة)
 PRIORITY_EVERY = int(os.environ.get("PRIORITY_EVERY", "60"))    # ثانية — صفحات الخصومات
 FULL_EVERY = int(os.environ.get("FULL_EVERY", "30")) * 60       # ثانية — باقي الكتالوج
 RUN_SECONDS = int(os.environ.get("RUN_SECONDS", "0")) or None
@@ -195,8 +195,8 @@ class Collector:
                 details.append({"id": did, "store": STORE, "brand": brand, "source_category": it["src_category"], "region": REGION})
                 self.details_done.add(did)
                 self.need_details.append((did, it["url"]))
-        for i in range(0, len(out), 100):
-            res = await self.rpc("ingest_products", {"items": out[i:i + 100]})
+        for i in range(0, len(out), 30):
+            res = await self.rpc("ingest_products", {"items": out[i:i + 30]})
             if res:
                 self.st["inserted"] += res.get("inserted", 0); self.st["changed"] += res.get("changed", 0)
         if details:
@@ -261,8 +261,10 @@ class Collector:
         while True:
             if not self.need_details:
                 await asyncio.sleep(10); continue
+            # التفاصيل بتاخد بس الوقت الفاضي — الأسعار أولاً
+            if self.q and self.q[0][0] <= time.time():
+                await asyncio.sleep(2); continue
             did, url = self.need_details.pop(0)
-            await asyncio.sleep(3)
             html = await self.get(url, tries=2)
             if not html:
                 continue
