@@ -2,24 +2,20 @@ name: فحص مصدر بيانات (قراءة بس)
 on:
   workflow_dispatch:
     inputs:
-      urls:
-        description: 'روابط مفصولة بمسافة'
-        required: true
-      grep:
-        description: 'regex (اختياري)'
-        default: ''
-      bytes:
-        default: '3000'
+      urls: {required: true}
+      grep: {default: ''}
+      bytes: {default: '3000'}
+      off: {default: '0'}
+      hdrs: {default: ''}
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          for u in ${{ github.event.inputs.urls }}; do
-            echo "=================== $u"
-            rm -f /tmp/b /tmp/h; curl -sS -L -H "Accept-Encoding: gzip" --compressed -m 25 -o /tmp/b -D /tmp/h -w "STATUS %{http_code} SIZE %{size_download}\n" \
-              -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" \
-              -H "Accept-Language: ar-EG,ar;q=0.9,en;q=0.8" "$u" || true
-            grep -iE '^(content-type|server|location|x-)' /tmp/h | head -8
-            if [ -n "${{ github.event.inputs.grep }}" ]; then grep -aoE "${{ github.event.inputs.grep }}" /tmp/b | sort | uniq -c | sort -rn | head -60; else head -c ${{ github.event.inputs.bytes }} /tmp/b; fi; echo
-          done
+      - uses: actions/checkout@v4
+      - run: python3 tools/probe.py
+        env:
+          URLS: ${{ github.event.inputs.urls }}
+          GREP: ${{ github.event.inputs.grep }}
+          BYTES: ${{ github.event.inputs.bytes }}
+          OFF: ${{ github.event.inputs.off }}
+          HDRS: ${{ github.event.inputs.hdrs }}
