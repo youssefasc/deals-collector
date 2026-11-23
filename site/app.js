@@ -10,7 +10,7 @@ const PCTS=[[0,'أي خصم'],[20,'+20%'],[40,'+40%'],[60,'+60%'],[80,'+80%']];
 const PAGE=30;
 let BOT_URL='https://t.me/AmazonEGOffersBot';
 let SITE={},HOME=null;
-const STORES=[['amazon','أمازون مصر','amazon.eg',1],['amazon_resale','أمازون مستعمل','amazon.eg',1],['amazon_now','أمازون ناو','amazon.eg',1],['carrefour','كارفور','carrefouregypt.com',1],['talabat','طلبات مارت','talabat.com',1],['btech','B.TECH','btech.com',1],['2b','2B','2b.com.eg',1],['dream2000','دريم 2000','dream2000.com',1],['dubaiphone','دبي فون','dubaiphone.net',1],['noon','نون مصر','noon.com',0],['noon_minutes','نون مينتس','noon.com',0],['jumia','جوميا','jumia.com.eg',0],['breadfast','بريد فاست','breadfast.com',0],['vodafone','فودافون','vodafone.com.eg',0],['etisalat','اتصالات','eand.com.eg',0],['orange','أورنج','orange.eg',0],['we','وي WE','te.eg',0]];
+const STORES=[['amazon','أمازون مصر','amazon.eg',1],['amazon_resale','أمازون مستعمل','amazon.eg',1],['amazon_now','أمازون ناو','amazon.eg',1],['carrefour','كارفور','carrefouregypt.com',1],['talabat','طلبات مارت','talabat.com',1],['btech','B.TECH','btech.com',1],['2b','2B','2b.com.eg',1],['dream2000','دريم 2000','dream2000.com',1],['dubaiphone','دبي فون','dubaiphone.net',1],['noon','نون مصر','noon.com',0],['noon_minutes','نون مينتس','noon.com',1],['jumia','جوميا','jumia.com.eg',0],['breadfast','بريد فاست','breadfast.com',0],['vodafone','فودافون','vodafone.com.eg',0],['etisalat','اتصالات','eand.com.eg',0],['orange','أورنج','orange.eg',0],['we','وي WE','te.eg',0]];
 const st={type:'',since:0,store:'',sort:'new',cat:'',pct:0,q:'',offset:0,seen:new Set(),first:true,done:false};
 const SEEN=new Map(); // id -> row (for instant product page)
 const $=id=>document.getElementById(id);

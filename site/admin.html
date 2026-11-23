@@ -109,6 +109,12 @@ async dash(){
       <div class="stat"><small>اتفحص آخر 10 دقايق</small><b>${fmt(s.seen_10m)}</b></div>
       <div class="stat"><small>مخفي</small><b>${fmt(s.hidden)}</b></div>
       <div class="stat"><small>مميّز ⭐</small><b>${fmt(s.featured)}</b></div><div class="stat"><small>كوبونات شغّالة</small><b>${fmt(s.coupons)}</b></div></div></div>
+    <div class="card"><h3>⚡ جامع نون مينتس (مستقل)</h3>${(()=>{const m=s.minutes_status;if(!m)return '<p class="mute">لسه مفيش تقرير — الجامع بيبدأ.</p>';const age=Math.round((Date.now()/1000-m._at)/60);const fm=x=>x==null?'—':(x<120?x+' ث':Math.round(x/60)+' د');return `<p class="mute">آخر تقرير من ${age} د ${age>5?'⚠️ الجامع مش بيبعت تقارير':'🟢 شغال'} · المنطقة: ${m.region}</p><div class="grid">
+<div><b>${m.pages}</b><br><small>صفحة في الطابور</small></div><div><b>${m.priority_pages}</b><br><small>صفحة أولوية (خصومات)</small></div>
+<div><b>${fm(m.prio_cycle_secs)}</b><br><small>دورة الأولوية الفعلية (الهدف ${m.target_priority_secs} ث)</small></div><div><b>${fm(m.full_cycle_secs)}</b><br><small>دورة الكتالوج كله</small></div>
+<div><b>${m.new_products}</b><br><small>منتج جديد</small></div><div><b>${m.price_changes}</b><br><small>تغيير سعر</small></div>
+<div><b>${m.discount_ended}</b><br><small>خصم انتهى</small></div><div><b>${m.out_of_stock} / ${m.back_in_stock}</b><br><small>نفد / رجع</small></div>
+<div><b>${m.requests}</b><br><small>طلب (أخطاء ${m.errors})</small></div><div><b>×${m.slowdown}</b><br><small>تهدئة تلقائية</small></div></div>`})()}</div>
     <div class="card"><h3>☁️ الجامع السحابي (مجاني — شغال كل دقيقة)</h3><p class="mute">بيشتغل على Supabase من غير أي جهاز. لو متجر فشل بيستنى ويرجع لوحده، والباقي مكمّل.</p><div class="grid">${(s.cloud_jobs||[]).map(j=>{const now=Date.now();const ok=j.last_ok?Date.parse(j.last_ok):0;const nxt=Date.parse(j.next_run);
         const st=!j.enabled?['⏸ موقوف','#2a2a2a','#bbb']:j.fail_count>0?['⏳ بيستنى ويجرب تاني','#2c2414','#ffd08a']:ok&&now-ok<3*3600e3?['● شغّال','#11291b','#7ff0a7']:['… مستني دوره','#1d2230','#9fb3ff'];
         return `<div class="stat"><small>${esc((STORES.find(x=>x[0]===j.store)||[,j.store])[1])}</small><b><span class="tag" style="background:${st[1]};color:${st[2]}">${st[0]}</span></b>
