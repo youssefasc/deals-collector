@@ -21,7 +21,7 @@ for u in urls:
     if pat:
         from collections import Counter
         for m, c in Counter(re.findall(pat, t)).most_common(80):
-            print(c, (m if isinstance(m, str) else " | ".join(m))[:300])
+            print(c, (m if isinstance(m, str) else " | ".join(m))[:n])
     else:
         off = int(os.environ.get("OFF", "0") or 0)
         print(t[off:off + n])
