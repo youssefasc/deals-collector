@@ -5,7 +5,7 @@ on:
       urls: {required: true}
       grep: {default: ''}
       bytes: {default: '3000'}
-      off: {default: '0'}
+      offset: {default: '0'}
       hdrs: {default: ''}
 jobs:
   probe:
@@ -17,5 +17,5 @@ jobs:
           URLS: ${{ github.event.inputs.urls }}
           GREP: ${{ github.event.inputs.grep }}
           BYTES: ${{ github.event.inputs.bytes }}
-          OFF: ${{ github.event.inputs.off }}
+          OFF: ${{ github.event.inputs.offset }}
           HDRS: ${{ github.event.inputs.hdrs }}
