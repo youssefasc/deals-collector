@@ -98,7 +98,8 @@ def normalize(row: dict, source: str, fetched_at: str):
         problems.append("مفيش سعر صالح")
     if problems:
         return None, problems
-    if lp is None or lp < price:
+    lp_given = lp is not None and lp >= price
+    if not lp_given:
         lp = price
     return {
         "pid": sku or f"bc{barcode}",
@@ -113,7 +114,7 @@ def normalize(row: dict, source: str, fetched_at: str):
         "in_stock": boolish(r.get("in_stock")) if boolish(r.get("in_stock")) is not None else True,
         "image": r.get("image"), "url": r.get("url"),
         "region": r.get("region") or "غير محدد في المصدر",
-        "source": source, "source_at": fetched_at,
+        "source": source, "source_at": fetched_at, "_lp_given": lp_given,
     }, []
 
 
@@ -129,7 +130,8 @@ def dedupe(items):
         if hit is not None:
             dups += 1
             merged = dict(out[hit])
-            merged.update({k: v for k, v in it.items() if v not in (None, "")})   # الأحدث يكسب، والناقص بيتكمّل من القديم
+            merged.update({k: v for k, v in it.items() if v not in (None, "")
+                           and not (k in ("list_price", "discount_pct") and not it["_lp_given"] and out[hit].get("_lp_given") and it["price"] == out[hit]["price"])})   # الأحدث يكسب، والناقص بيتكمّل من القديم
             out[hit] = merged
         else:
             out.append(it)
